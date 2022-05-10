@@ -57,59 +57,64 @@ log using EICV5.log, replace
 /*===============================================================================================
 					CONSTRUCTING CONSUMPTION AGGREGATES
  ==============================================================================================*/
-*---------------------------------
-**YEARLY NON-FOOD
-*---------------------------------
+
+/*---------------------------------
+ YEARLY NON-FOOD (exp 12)
+*---------------------------------*/
 
 	use "$data\cs_S8A1_expenditure.dta" , clear
 	
-	**replace missing values
-	*amount purchased
-	bysort province s8a1q0: egen medspd = median (s8a1q3)
-	replace s8a1q3 = medspd if ((s8a1q3>=. | s8a1q3==0) & s8a1q2==1)
-	
+	gen ynonfood = s8a1q3 if s8a1q1~=21 & s8a1q1~=29 & s8a1q1~=30 & s8a1q1~=31 & s8a1q1~=36 & s8a1q1~=37 & s8a1q1~=38 ///
+	& s8a1q1~=44 & s8a1q1~=56 & s8a1q1~=60 & s8a1q1~=62 & s8a1q1~=63 & s8a1q1~=64 & s8a1q1~=65 & s8a1q1~=66 & s8a1q1~=68 // 138 cases (ynonfood>official) look like adjustment for outliers
+
 	*aggregate
-	collapse (sum)  nfyr=s8a1q3, by(hhid)
+	collapse (sum) nfyr=ynonfood, by(hhid)
 	tempfile nfyr
 	save `nfyr'
 
-*---------------------------------
-**MONTHLY NON-FOOD
-*---------------------------------
+/*---------------------------------
+**MONTHLY NON-FOOD (exp13)
+*---------------------------------*/
 
 	use "$data\cs_S8A2_expenditure.dta" , clear
 
-	**replace missing values
-	*amount purchased
-	bysort province s8a2q0: egen medspd = median (s8a2q3)
-	replace s8a2q3 = medspd if ((s8a2q3>=. | s8a2q3==0) & s8a2q2==1)
-
+	gen mnonfood = s8a2q3 if s8a2q1 ~= 43 & s8a2q1 ~= 44 & s8a2q1 ~= 45 & s8a2q1 ~= 46 // remaining 218 differences (mnonfood>official) seem to be adjusted for outliers
+	
 	*aggregate
-	collapse (sum)  s8a2q3, by(hhid)
-	gen nfmt = 12 *s8a2q3
+	collapse (sum) mnonfood, by(hhid)
+	gen nfmth = 12 * mnonfood
 	tempfile nfmt
+	
 	save `nfmt'
+
 	
 *---------------------------------
 **WEEKLY NONFOOD
 *---------------------------------
 	use "$data\cs_S8A3_expenditure.dta" , clear
 
-	egen spend = rowtotal(s8a3q4 -s8a3q13), m //variable s8a3q3 was added in eicv5 summing up purchases over past 7 days. may affect calculations. for comparability, we keep same method as eicv4 (adding up visits2-11)
-	replace spend = 2 * spend if /*(province==1 & ur==2) |*/ province>1 //after checking, we realised that 11 visits were carried out even in rural areas in Kigali City, meaning that they use a recall period of 30 days. So we have changed this to reflect that. Otherwise, we would be over-estimating consumption in rural kigali
+	egen spend = rowtotal(s8a3q4 -s8a3q13), m // adding up visits2-11, info from the first visit is not used at all 
 	
-	**replace missing values
-	*months purchased
-	replace s8a3q2 = . if s8a3q2==99 
-	bysort 	province s8a3q0: egen medmth = median (s8a3q2) //
-	replace s8a3q2 = medmth if ((s8a3q2>=. | s8a3q2==0) & s8a3q3>0 & s8a3q3<.)
+	*aggregate 
+	*->from weekly to monthly
+	replace spend = (365/12) * spend/30 if  province==1 // Kigali City, consumption over 30 days
+	replace spend = (365/12) * spend/14 if  province>1 // All other provinces were interview during 14 days 
+
+	*-> from monthly to annual 
+	gen nfwk = spend * 12 //
 	
-	*amount purchased
-		bysort  province s8a3q0: egen medspd = mean (spend) // 
-		replace spend = medspd if ((spend>=. | spend==0) & s8a3q2>0 & s8a3q2<99)
+	*Validation 
+	bysort hhid: egen total_nfwk=total(nfwk)
+	merge m:1 hhid using "$data/EICV5_Poverty_file"
+	gen t= exp14_2/total_nfwk
 	
-	**Aggregate
-	gen nfwk = spend * s8a3q2
+	compare exp14_2 total_nfwk
+	sum t, d
+	drop t
+	
+	
+	
+	
 	collapse (sum)  nfwk, by(hhid)
 	tempfile nfwk
 	save `nfwk'
@@ -119,23 +124,66 @@ log using EICV5.log, replace
 *---------------------------------
 	use "$data\cs_S8B_expenditure.dta" , clear
 	
+/* Notes:
+ -	For the 27 predominantly rural districts, the survey calendar for 12 months is divided into 10 cycles, and each cycle is
+divided into two sub-cycles, for a total of 20 enumeration periods of 16 days each. Each enumerator visited a group of 3
+sample households every other day. A team of enumerators covers two sample EAs in each sub-cycle, or four EAs during a
+full cycle. In other words, each sample household in rural districts was visited 8 times over a period of 16 days.
+Questionnaire section 8Aiii, 8B and 8C were asked on every visit, while the other sections were spread out over the 8 visits
+(e.g. section 0-3 during 1st visit; section 4, 5a-5d, 8Ai, 8Aii during 2nd visit; section 5e, 6a-6c on 3rd visit; section 6d-6f on
+4th visit; section 7a-7c on 5th visit; section 7d-7h on 6th visit; section 9 on 7th visit; section 10 on 8th visit)
+
+- In the case of the three predominantly urban districts in Kigali Province, the data collection in each sample EA was
+conducted over a period of 33 days (one cycle). The 9 households in each sample EA were divided into 3 groups of 3
+households each. Each enumerator visited one group of 3 sample households each day, so each sample household was
+visited every three days. Five EAs are covered in each cycle. In other words, each sample household in Kigali was visited 11
+times over a period of 33 days. Questionnaire section 8Aiii, 8B and 8C were asked on every visit, while the other sections
+were spread out over the 11 visits (e.g. section 0 and 1 on 1st visit; section 2 and 3 on 2nd visit; section 4 on 3rd visit;
+section 5 on 4th visit; section 6a-6c on 5th visit; section 6d-6f on 6th visit; section 7a-7c on 7th visit; section 7d-7h on 8th
+visit; section 9 on 9th visit; section 10 on the 10th visit)
+*/
+
+*Questions  Household were visited 11 times, each time they ask how much did you spent.this happens in what timeframe? they are asked how many months did they spend on a specific item. Is this used at all? There is one month that is missing?? there is 11 visits because there is 11 point in the middle of 12.... nope
+
+*--> Compute monthly spending (Kigali has difference reference period than the resto of the country)
 	
-	egen spend = rowtotal(s8bq4 - s8bq13), m // Household were visited 11 times, each time they ask how much did you spent.this happens in what timeframe? they are asked how many months did they spend on a specific item. Is this used at all? There is one month that is missing?? there is 11 visits because there is 11 point in the middle of 12.... nope
-	// Old notes:variable s8bq3 added in eicv5 summing up purchases over past 7 days. may affect calculations. for comparability, we keep same method as eicv4 (adding up visits 2-11)
-	replace spend = 2 * spend if /*(province==1 & ur==2) |*/ province>1 //after checking, we realised that 11 visits were carried out even in rural areas in Kigali City, meaning that they use a recall period of 30 days. So we have changed this to reflect that. Otherwise, we would be over-estimating consumption in rural kigali
+	egen spend = rowtotal( s8bq4 - s8bq13), m // They exclude first visit because it considers a 7 days time frame See Old notes.
+			// Old notes: variable s8bq3 added in eicv5 summing up purchases over past 7 days. may affect calculations. for comparability, we keep same method as eicv4 (adding up visits 2-11)
 	
-	**replace missing values
-	*months purchased
-	replace s8bq2 = . if s8bq2==99  
-	bysort province s8bq0: egen medmth = mean(s8bq2) if  spend>0 & spend<.
-	replace s8bq2 = medmth if ((s8bq2>=. | s8bq2==0) & spend>0 & spend<.) 
+	replace spend = (365/12) * spend/30 if  province==1
+	replace spend = (365/12) * spend/14 if  province>1 // All districts but the ones of Kigali Province were interview in a lapse of 16 days. Therefore their monthly consumption is the spendinging recorded in 16 times two.
+			//	Old notes: we realised that 11 visits were carried out even in rural areas in Kigali City, meaning that they use a recall period of 30 days. So we have changed this to reflect that. Otherwise, we would be over-estimating consumption in rural kigali
+
+*--> Imputation exercise. Not carried out by belgian because it leads to replication problems 
+		/*	*Impute frequency of purchase (mean of number of months-s8bq2 by by province
+			
+			replace s8bq2 = . if s8bq2==99  
+			bysort province s8bq0: egen medmth = mean(s8bq2) if  spend>0 & spend<.
+			replace s8bq2 = medmth if ((s8bq2>=. | s8bq2==0) & spend>0 & spend<.) 
+			
+			*Amount bought by month
+			bysort province s8bq0: egen medspd = mean (spend) if  s8bq2>0 & s8bq2<.
+			*replace spend = medspd if ((spend>=. | spend==0) & s8bq2>0 & s8bq2<99) //we have removed these imputations, as we were better able to replicate official NISR food basket (table B4 in EICV4 poverty profile) by removing this line and multiplying total consumption by 12.
+		*/	
 	
-	*amount purchased
-	bysort province s8bq0: egen medspd = mean (spend) if  s8bq2>0 & s8bq2<.
-	*replace spend = medspd if ((spend>=. | spend==0) & s8bq2>0 & s8bq2<99) //we have removed these imputations, as we were better able to replicate official NISR food basket (table B4 in EICV4 poverty profile) by removing this line and multiplying total consumption by 12.
+	*Aggregate
+	gen food = spend * 12 // s8bq2 if s8bq2<99 //by multiplying by 12 (instead of self-reported number of months consumed) were were able to replicate the official NISR food basket almost exactly, so we assume that this is a better assumption than the one used before.
 	
-	*aggregate
-	gen food = spend * 12 //s8bq2 if s8bq2<99 //by multiplying by 12 (instead of self-reported number of months consumed) were were able to replicate the official NISR food basket almost exactly, so we assume that this is a better assumption than the one used before.
+	
+	*Validation 
+	bysort hhid: egen total_food=total(food)
+	merge m:1 hhid using "$data/EICV5_Poverty_file"
+	gen t= exp15_2/total_food
+	
+	compare exp15_2 total_food
+	sum t, d
+	gen tt=1 if t>0.99 & t<1.01
+	replace tt=0 if tt==.
+	ta tt
+	
+	drop t
+	
+	
 	decode s8bq0 , gen(TXT)
 	keep hhid spend food TXT s8bq0
 	
@@ -143,6 +191,7 @@ log using EICV5.log, replace
 	tempfile foodqty
 	save `foodqty'
 	save "foodqty18.dta", replace
+	
 	
 	collapse (sum)  food , by(hhid)
 	tempfile food
@@ -155,38 +204,76 @@ log using EICV5.log, replace
 	
 	*replace s8cq15 = s8cq15*135/150
 	egen spend = rowtotal(s8cq4 - s8cq13), m //variable added in eicv5 summing up purchases over past 7 days. may affect calculations. for comparability, we keep same method as eicv4 (adding up visits2-11)
-	replace spend = 2 * spend if /*(province==1 & ur==2) |*/ province>1 //after checking, we realised that 11 visits were carried out even in rural areas in Kigali City, meaning that they use a recall period of 30 days. So we have changed this to reflect that. Otherwise, we would be over-estimating consumption in rural kigali
 	
-	**replace missing values
-	*months purchased
-	replace s8cq2 = . if s8cq2==99  
-	bysort province s8cq0: egen medmth = mean (s8cq2) if spend>0 & spend<.
-	replace s8cq2 = medmth if ((s8cq2>=. | s8cq2==0) & spend>0 & spend<.)
+	replace spend = (365/12) * spend/30 if  province==1
+	replace spend = (365/12) * spend/14 if  province>1 // All districts but the ones of Kigali Province were interview in a lapse of 16 days. Therefore their monthly consumption is the spendinging recorded in 16 times two.
+		
+	*--> Imputation 
+	*Frequency of purchase (s8cq2: # of months out of 12 months) using mean of article by provinnce
+		*Alternative 1 
+			*replace s8cq2 = . if s8cq2==99  
+			*bysort province s8cq0: egen medmth = mean (s8cq2) if spend>0 & spend<.
+			*replace s8cq2 = medmth if ((s8cq2>=. | s8cq2==0) & spend>0 & spend<.)
+		
+		*Alternative 2 
+		replace s8cq2=12  //by multiplying by 12 (instead of self-reported number of months consumed) were were able to replicate the official NISR food basket almost exactly, so we assume that this is a better assumption than the one used before.
 	
-	*amount purchased
-	bysort province s8cq0: egen medspd = mean (spend)  if spend>0 & spend<.
-	*replace spend = medspd if ((spend>=. | spend==0) & s8cq2>0 & s8cq2<99) //we have removed these imputations, as we were better able to replicate official NISR food basket (table B4 in EICV4 poverty profile) by removing this line and multiplying total consumption by 12.
 	
-	*price purchased
-	replace s8cq15=. if s8cq15==9999
-	bysort `prov' s8cq0 : egen medprc = median (s8cq15)  if spend>0 & spend<. //
-	replace s8cq15 = medprc if ((s8cq15>=. | s8cq15==0 | s8cq15==9999) & s8cq2>0 & s8cq2<99)
-	
-	replace s8cq2=12 //by multiplying by 12 (instead of self-reported number of months consumed) were were able to replicate the official NISR food basket almost exactly, so we assume that this is a better assumption than the one used before.
-	*aggregate
-	gen auto = spend * s8cq2 *s8cq15 if s8cq0<=97 //here we removed non-food item from auto-food consumption
-	gen autonf=spend * s8cq2 *s8cq15 if s8cq0>97
-	
-	decode s8cq0 , gen(TXT)
+	*Price per Kg  using median of article by province 
+		*Notes: 2% of observations with missing if 0 is a valid price if not 
+		*Note: count if s8cq15==0 & spend>0: 1742
 	
 	*convert unit price to kilo 
-	replace s8cq15 = s8cq15*3 if s8cq14=="Piece" & (s8cq0<30 | s8cq0>32) 
+	*replace s8cq15 = s8cq15*3 if s8cq14=="Piece" & (s8cq0<30 | s8cq0>32) 
+	
+	replace s8cq15=. if s8cq15==9999
+	replace s8cq15=. if s8cq15==0 // This is added line, lead to different imputed prices have minor improvement effects 
+	bysort province s8cq0 : egen medprc = mean (s8cq15)  // I use all valid observatins about prices to compute the median. This has minor improvements in households with high nsir-autoconsumption compared to ours  if spend>0 & spend<. //
+	replace s8cq15 = medprc if (s8cq15==. | s8cq15==0 | s8cq15==9999) // added by DV: redundant & s8cq2>0 & s8cq2<99
+	
+	*Compute prices using similar products for relevant products withouth price s8cq0=6, s8cq0==23, 39
+	
+	
+	*Yearly aggregate: Monthly spending X 12 X Price 
+		*Note: The code s8cq0 of the questionarie is different from the microdata. In the questionarie athe code 98 is actually 97 in the microdata. Including s8==99 leads to importnat mistmatch in the bottom 1% so it suggest that 98 includes food . There is a small improvement between code 98 rather than 97
+	gen auto = spend * s8cq2 * s8cq15 if s8cq0<=98 //  here we removed non-food item from auto-food consumption
+	
+	gen autonf=spend * s8cq2 * s8cq15 if s8cq0>98
+	
+	decode s8cq0 , gen(TXT)
+		
+	
+	*Validation (about 1% wrong)
+	bysort hhid: egen total_auto=total(auto)
+		/*Old code to verify*/ //bysort hhid: egen total_auto2=total(auto2)
+	merge m:1 hhid using "$data/EICV5_Poverty_file"
+	gen t= exp16_2/total_auto
+	replace t=1 if exp16_2==0 & total_auto==0 
+	/*Old code to verify*/ // gen t2= exp16_2/total_auto2
+	sum t, d
+	count if exp16_2!=0 & total_auto==0 // 404 obs when using 97 
+	/*Old code to verify*/ // sum t2, d
+	*NOte: count if exp16_2!=0 & total_auto==0 : 7 obs that suggest they impute autocon from somewhere else-> oual include item 98!!!
+	*Mean vs median improve cases where they have higher value bt made worse cases where we have higher values overall  not clear improvement 
+	* Including zero prices in the MEAN prices improves cases where they were below dramatically but made worse the cases where they are above . with median it produces an error of zero observatons in ours 
+	*Small improvement in distrbution when only using prices of households who observe but more cases where exp16_2!=0 & total_auto==0
+	
+	duplicates drop hhid, force 
+	
+	gen tt=1 if t>0.98 & t<1.02
+	replace tt=0 if tt==.  
+	ta tt
+	
+	
+	
 	
 	keep hhid-s8cq0 s8cq2 s8cq14 s8cq15 auto* spend TXT 
 	
 	tempfile autoqty
 	save `autoqty'
 	save "autoqty18.dta", replace
+	
+	
 	
 	collapse (sum)  auto* (mean) weight, by(hhid)
 	tempfile auto
@@ -235,38 +322,147 @@ log using EICV5.log, replace
 *---------------------------------
 	use "$data\cs_S10B2_Durable_household_goods.dta" , clear 
 	
-	*calculate average age of durables measure in years from year of purchase to 2022?
-	gen art1 = 12* 2017 + 6  - (12* s10bq5ay) //S11BQ3A1 + S11BQ3A 
-	gen art2 = 12* 2017 + 6  - (12* s10bq5by)  //S11BQ3B1 + S11BQ3B
-	gen art3 = 12* 2017 + 6  - (12* s10bq5cy)  //S11BQ3C1 + S11BQ3C
-	replace art1 = 12 if art1<=0 //
-	replace art2 = 12 if art2<=0
-	replace art3 = 12 if art3<=0
+	*Calculate average age: Survey made in Jun 2017 against the year of purchase (s10bq5ay) 
 	
-	* Impute age for each article
-	egen avgage = rowmean(art1 art2 art3), 
-	bysort s10b2q1: egen medage = median (avgage)
+	clonevar yr_a1=s10bq5ay
+	clonevar yr_a2=s10bq5by
+	clonevar yr_a3=s10bq5cy
 	
-	*impute missing values
+	clonevar mt_a1=s10bq5am
+	clonevar mt_a2=s10bq5bm
+	clonevar mt_a3=s10bq5cm
+	
+	clonevar price1=s10bq7a
+	clonevar price2=s10bq7b
+	clonevar price3=s10bq7c
+		
 	forval i=1/3 {
+		replace yr_a`i'=. if yr_a`i'==0
+		replace mt_a`i'=. if mt_a`i'==0
+		replace price`i'=. if price`i'==0
 	}
-	*calculate the flow value of durables
-	gen prc1 = s10bq7a / (2*medage/12)  //1.6 is what we used in EICV3
-	gen prc2 = s10bq7b / (2*medage/12)
-	gen prc3 = s10bq7c / (2*medage/12)
 	
+	gen art1 = (12* 2017) + 6  - (12* yr_a1) // - mt_a1 //S11BQ3A1 + S11BQ3A 
+	gen art2 = (12* 2017) + 6  - (12* yr_a2) // - mt_a2 //S11BQ3B1 + S11BQ3B
+	gen art3 = (12* 2017) + 6  - (12* yr_a3) // - mt_a3 //S11BQ3C1 + S11BQ3C
 	
-	*impute missing values
-	forval i=1/3 {
-	bysort s10b2q1: egen medprc`i' = median (prc`i')
-	replace prc`i' = medprc`i' if prc`i'>=999999 & art`i'!=.
-	} 
+	  
+	*When purchased was made in the future assign at least one year...? no changes in the code because of it 
+		replace art1 = 12 if art1<=0 //
+		replace art2 = 12 if art2<=0
+		replace art3 = 12 if art3<=0
+	
+	*Imputations 
+		*Age for each article
+		egen avgage = rowmean(art1 art2 art3), 
+		bysort s10b2q1: egen medage = median (avgage)
+		
+		egen avgprice = rowmean(s10bq7a s10bq7b s10bq7c), 
+		bysort s10b2q1: egen medprice = median (avgprice)
+		
+		
+		forval i=1/3 {
+			*replace art`i'=medage if art`i'==. & price`i'!=. & price`i'!=0
+			gen prc`i' = price`i' / (2*art`i'/12)  //1.6 is what we used in EICV3
+			*gen  prc`i' = price`i' / (2*medage/12) if art`i'==.   //1.6 is what we used in EICV3
+			*replace prc`i'=. if prc`i'==0
+			
+			*replace prc`i'=price`i'/(2*medage/12) if art`i'==.
+			*replace prc`i'=medprice/(2*art`i'/12) if price`i'==.
+		}
+		
+	/* Bfore everything with the median age , so no household heterogeneity
+	*Calculate the flow value of durables
+		gen prc1 = s10bq7a / (2*medage/12)  //1.6 is what we used in EICV3
+		gen prc2 = s10bq7b / (2*medage/12)
+		gen prc3 = s10bq7c / (2*medage/12)
+	*/
+	
+	*Impute missing values or very big values 
+	*forval i=1/3 {
+	*bysort s10b2q1: egen medprc`i' = median (prc`i')
+	*dis "Imputing aggregate median "
+	*replace prc`i' = medprc`i' if prc`i'>=999999 & art`i'!=.
+	*} 
+	
 	egen durables = rowtotal(prc1 prc2 prc3), 
+	egen durables_mean = rowmean(prc1 prc2 prc3)
+	*replace durables=durables_mean*s10b2q2 if s10b2q2>3 & durables_mean!=0 & durables_mean!=.
+	
+	*Validation 
+	bysort hhid: egen total_durables=total(durables)
+	merge m:1 hhid using "$data/EICV5_Poverty_file"
+	gen t= exp17/total_durables
+	replace t=1 if exp17==0 & total_durables==0
+	
+	compare exp17 total_durables
+	
+	count if exp17==0 & total_durables!=0 // 3000 obs whre we overimpute not related to our imputatio with median values nor the finl imputation of number of items
+	
+	sum t, d
+	duplicates drop hhid, force
+	gen tt=1 if t>0.99 & t<1.01
+	replace tt=0 if tt==.
+	ta tt
+	
+	
+	drop t
+	
+	
 	
 	*aggregate
 	collapse (sum)  durables, by(hhid)
 	tempfile durables
 	save `durables'
+
+
+*---------------------------------
+**Manteinance 
+*---------------------------------
+
+use "$data\cs_S0_S5_Household.dta" , clear
+
+merge 1:1 hhid using  "$data/EICV5_Poverty_file",  
+
+ta s5aq11 if exp6!=0 // 95% owner , some tenancy other dwelling provided free of charge
+
+
+
+
+use "$data\cs_S8A1_expenditure.dta" , clear
+
+	gen manteinance = s8a1q3 if s8a1q1==29 | s8a1q1==30
+	
+	*bysort hh
+	*bysort province s8a1q0: egen medspd = median (s8a1q3)
+	*replace s8a1q3 = medspd if ((s8a1q3>=. | s8a1q3==0) & s8a1q2==1)
+	
+	*Validation 
+	bysort hhid: egen total_manteinance=total(manteinance)
+	merge m:1 hhid using "$data/EICV5_Poverty_file"
+	gen t= exp6/total_manteinance
+	replace t=1 if exp6==0 & total_manteinance==0
+	replace t=99999998 if exp6>0 & exp6!=. & total_manteinance==0
+	
+	sort hhid 
+	br hhid-s8a1q3 total_manteinance exp6 if  s8a1q3!=.
+
+	*quantiles total_manteinance, gen (qtiles) n(100)
+	*sum qtiles if total_manteinance!=exp6
+	
+	
+	
+	sum t, d
+	duplicates drop hhid, force
+	drop if exp6==0
+	gen tt=1 if t>0.99 & t<1.01
+	replace tt=0 if tt==.
+	ta tt
+	
+	compare exp6 total_manteinance
+	count if exp6==0 & total_manteinance!=0 // 3000 obs whre we overimpute not related to our imputatio with median values nor the finl imputation of number of items
+	
+*merge 1:m using ""
 
 *---------------------------------
 *HEALTH / EDUCATION
@@ -542,6 +738,7 @@ replace travel = 0
 	
 	replace  ad`var' = mn`var'  if outl`var'==1
 	} 
+	
 // Additional outliers 	
 	replace nfyr = . if nfyr>20000000 //manually removing some outliers to get same results as official
 	
