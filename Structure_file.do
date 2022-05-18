@@ -1,32 +1,47 @@
+/*============================================================================================
+ ======================================================================================
+ ======================================================================================
+
+Project:   Subsidies Rwanda
+Author:    EPL (DV & MM) PE (JCP)
+Creation Date:  May 2 2021
+
+============================================================================================
+============================================================================================
+============================================================================================*/
 
 
 /*===============================================================================================
 ===============================================================================================
 
-								Generic set up
+								A. Generic set up
 
 ===============================================================================================
 ==============================================================================================*/
 
 
 /*===============================================================================================
-								Main paths 
+								Main paths (Every user needs to add its own paths here)
  ==============================================================================================*/
  
 clear 
 macro drop all
 set more off, perm
 
-* User must define two global macros in order to run the analysis:
-	* (1) "MyProject" points to the project folder
+* Note you should define a folder for your inputs, outputs and do-files. They do not need to be in the same folder. This gives flexibility across collaborators to use different folders for heavy databases. 
 	
 	if "`c(username)'"=="danielsam" {
 	
-		global proj  "C:\Users\danielsam\Desktop\World Bank\Rwada_Subsidy\r_data\Energy" // just in case the line above fails, it does not work well with texdoc  
+		global proj  "C:/Users/danielsam/Desktop/World Bank/Rwada_Subsidy/r_data/Energy" 
 		
-		global a_proj_eicv 	"C:\Users\danielsam\Desktop\World Bank\Rwada_Subsidy\r_data\EICV5" // path raw data: large and raw datasets
+		global proj_out  "C:/Users/danielsam/Desktop/World Bank/Rwada_Subsidy/r_data/Energy" 
 		
-		global a_proj_ceq 	"C:\Users\danielsam\Desktop\World Bank\Rwada_Subsidy\r_data\CEQ" // path raw data: large and raw datasets
+		global proj_inp  "C:/Users/danielsam/Desktop/World Bank/Rwada_Subsidy/r_data/Energy" 
+		
+		global proj_survey  "C:/Users/danielsam/Desktop/World Bank/Rwada_Subsidy/r_data/Energy/Survey_data" 
+		
+		*global a_proj_eicv 	"C:\Users\danielsam\Desktop\World Bank\Rwada_Subsidy\r_data\EICV5" // path raw data: large and raw datasets
+		*global a_proj_ceq 	"C:\Users\danielsam\Desktop\World Bank\Rwada_Subsidy\r_data\CEQ" // path raw data: large and raw datasets
 		
 	}
 	else if {
@@ -39,42 +54,45 @@ set more off, perm
 	*	global pd_sd   		"$proj\Survey_data" 			// the one is temporal tomorrow	
 	
 /*===============================================================================================
-								Internal folder paths 
+								Internal folder paths
+	Note: Do not change paths here unless you know what you are doing because it may affect other users							
  ==============================================================================================*/
 	
 	
-	global pdta			"$proj/Inputs"
 	global pdo   		"$proj/analysis_subsidies" 	 // path do-files
-	global po 	  		"$proj/output/intermediate"  // Output for analysis
-	global pp 	  		"$proj/output/final" 		 // path paper output
+	global pdta			"$proj_inp/inputs"
+	global pp 	  		"$proj_out/outputs/final" 		 // path paper output
+	global po 	  		"$proj_inp/outputs/intermediate"  // path raw output
 	
 	*--> Intermediate outputs
 	global pol 	  		"$po/log" 	
 	global pot 	  		"$po/tables" 	
-	global poe 			"$pot/excel"	
+	global poe 			"$po/excel"	
 	global pof 	  		"$po/figures" 	
 	global pov 	  		"$po/viz" 		
-	global pos 			"$po/ster"      
+	global pos 			"$po/ster"
+    global podta 		"$po/dta"  
 	global PYTHONPATH 	`"$pdo/_programs/phyton"' // * path of phyton scripts for tables 
 	
 	*--> Final outputs 
-	global ppt      "$pp\tables"    // path to paper tables 
-	global ppf 	  	"$pp\figures"  // path to paper figures
-	global pst 	  	"$ps\tables"   // path to slides tables 
-	global psf 	  	"$ps\figures"  // path to slides figures 
+	global ppt      "$pp\tables"    // Paper tables
+	global ppf 	  	"$pp\figures"  // Paper figures
+	global pst 	  	"$ps\tables"   // Slides Tables
+	global psf 	  	"$ps\figures"  // Sides Figures
 	
+	*--> Create the ouput folder extensions
+	cap mkdir "${pdta}"
+	cap mkdir "${proj_out}/outputs"
+	cap mkdir "${po}"
+	cap mkdir "${pp}"
 	cap mkdir "${pol}"
 	cap mkdir "${pot}"
 	cap mkdir "${poe}"
 	cap mkdir "${pof}"
 	cap mkdir "${pov}"
 	cap mkdir "${pos}"
+	cap mkdir "${podta}" 
 	
-	*Note:!! always that you want to save a table, figure, ster file, ect; you need to use the global define for each type of files + the directory of the analysis. For eaxample :  "$pot/31_an" saves tables for analysis 31_an
-	global prepo "$po/_repo"	//path repo
-	cap mkdir "$po/_repo"
-	
-
 
 /*===============================================================================================
 							Log and loading programs 
@@ -85,7 +103,7 @@ set more off, perm
 	cap log close
 	cap mkdir "${po}/log"
 	local datetime : display %tcCCYY.NN.DD!_HH.MM.SS `=clock("$S_DATE $S_TIME", "DMYhms")'
-	local logfile "$po/log/`datetime'.log"
+	local logfile "$pol/`datetime'.log"
 	log using "`logfile'", text
 	
 	display "Begin date and time: $S_DATE $S_TIME"
@@ -114,7 +132,7 @@ set more off, perm
 ===============================================================================================
 ===============================================================================================
 
-								Subsidies algorithm 
+								Running sequence 
 
 ===============================================================================================
 ===============================================================================================
@@ -128,17 +146,29 @@ set more off, perm
 	*dis "Loading settings:"
 	*include "$pdo\settings.do"
 	
+	*Note: Define $folder for each step. This makes that each table, figure, ster file is saved in a independent folder.  For eaxample :  "$pot/31_an" saves tables for analysis 31_an
 	
 	
 /*===============================================================================================
-					1. Descriptives 
+					1. Welfare aggregate 
  ==============================================================================================*/
 	
 	*Rebuild the welfare aggregate ...
-	include "$pdo\1_cleaning_cons\11_poverty_numbers.do"
-	* POverty stats 
-	include "$pdo\1_cleaning_cons\12_stats_pov.do"
+	qui: include "$pdo\1_cleaning_cons\11_poverty_numbers.do"
 	
+	* Compare to official welfare aggregate
+	qui: include "$pdo\1_cleaning_cons\12_Replication_welfare_aggregate.do"
+	
+
+
+/*===============================================================================================
+					2. Tax excise exercise
+ ==============================================================================================*/
+
+	qui: include "$pdo\2_Cost_push\21_Create_coicop_data.do"
+	
+	
+exit 
  
 /*===============================================================================================
 					2. Identification assumptions
