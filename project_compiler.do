@@ -1,27 +1,15 @@
 /*============================================================================================
  ======================================================================================
- ======================================================================================
 
-Project:   Subsidies Rwanda
-Author:    EPL (DV & MM) PE (JCP)
-Creation Date:  May 2 2021
+	Project:   Subsidies Rwanda
+	Author:    EPL (DV & MM) PE (JCP)
+	Creation Date:  May 2 2021
 
-============================================================================================
 ============================================================================================
 ============================================================================================*/
 
-
 /*===============================================================================================
-===============================================================================================
-
-								A. Generic set up
-
-===============================================================================================
-==============================================================================================*/
-
-
-/*===============================================================================================
-								Main paths (Every user needs to add its own paths here)
+	Main paths (Every user needs to add its own paths here)
  ==============================================================================================*/
  
 clear 
@@ -33,16 +21,6 @@ set more off, perm
 	if "`c(username)'"=="danielsam" {
 	
 		global proj  "C:/Users/danielsam/Desktop/World Bank/Rwada_Subsidy/r_data/Energy" 
-		
-		global proj_out  "C:/Users/danielsam/Desktop/World Bank/Rwada_Subsidy/r_data/Energy" 
-		
-		global proj_inp  "C:/Users/danielsam/Desktop/World Bank/Rwada_Subsidy/r_data/Energy" 
-		
-		global proj_survey  "C:/Users/danielsam/Desktop/World Bank/Rwada_Subsidy/r_data/Energy/Survey_data" 
-		
-		*global a_proj_eicv 	"C:\Users\danielsam\Desktop\World Bank\Rwada_Subsidy\r_data\EICV5" // path raw data: large and raw datasets
-		*global a_proj_ceq 	"C:\Users\danielsam\Desktop\World Bank\Rwada_Subsidy\r_data\CEQ" // path raw data: large and raw datasets
-		
 	}
 	else if {
 	
@@ -50,19 +28,16 @@ set more off, perm
 	}
 	
 
-	*	global pd_i		 	"$proj\Inputs"
-	*	global pd_sd   		"$proj\Survey_data" 			// the one is temporal tomorrow	
-	
 /*===============================================================================================
-								Internal folder paths
-	Note: Do not change paths here unless you know what you are doing because it may affect other users							
+	Internal folder structure
+	Note: Do not change paths here unless you want to change the structure of the project. Changes to this section may affect other users.						
  ==============================================================================================*/
 	
 	
 	global pdo   		"$proj/analysis_subsidies" 	 // path do-files
-	global pdta			"$proj_inp/inputs"
-	global pp 	  		"$proj_out/outputs/final" 		 // path paper output
-	global po 	  		"$proj_inp/outputs/intermediate"  // path raw output
+	global pdta			"$proj/inputs"
+	global pp 	  		"$proj/outputs/final" 		 // path paper output
+	global po 	  		"$proj/outputs/intermediate"  // path raw output
 	
 	*--> Intermediate outputs
 	global pol 	  		"$po/log" 	
@@ -95,7 +70,7 @@ set more off, perm
 	
 
 /*===============================================================================================
-							Log and loading programs 
+	Log and loading programs 
  ==============================================================================================*/
 
 * Initialize log and record system parameters
@@ -120,7 +95,7 @@ set more off, perm
 		* if "$DisableR"!="1" rscript using "$proj/scripts/_programs/_install_R_packages.R" //  R packages can be installed manually (see README) or installed automatically by uncommenting the following line
 	
 	*Required packages 	written by others 
-	sysdir set PERSONAL "$pdo/_libraries/Stata"  // This is not right, PELAOOOOO
+	sysdir set PERSONAL "$pdo/_programs/libraries/Stata"  // This is not right, PELAOOOOO
 	mata: mata mlib index
 	
 	* Stata and R version control
@@ -129,58 +104,37 @@ set more off, perm
 
 
 /*===============================================================================================
-===============================================================================================
-===============================================================================================
-
-								Running sequence 
-
-===============================================================================================
-===============================================================================================
-===============================================================================================
-==============================================================================================*/
-
-/*===============================================================================================
-					0. Project_parameters
+	0. Setting up parameters
  ==============================================================================================*/
 	
 	*dis "Loading settings:"
 	*include "$pdo\settings.do"
-	
 	*Note: Define $folder for each step. This makes that each table, figure, ster file is saved in a independent folder.  For eaxample :  "$pot/31_an" saves tables for analysis 31_an
 	
 	
 /*===============================================================================================
-					1. Welfare aggregate 
+	1. Welfare aggregate 
  ==============================================================================================*/
 	
-	*Rebuild the welfare aggregate ...
+	// Replication of official consumption aggregate ...
 	qui: include "$pdo\1_cleaning_cons\11_poverty_numbers.do"
 	
-	* Compare to official welfare aggregate
+	//Compare to official welfare aggregate
 	qui: include "$pdo\1_cleaning_cons\12_Replication_welfare_aggregate.do"
 	
 
 
 /*===============================================================================================
-					2. Tax excise exercise
+	2. Tax excise exercise
  ==============================================================================================*/
-
-	qui: include "$pdo\2_Cost_push\21_Create_coicop_data.do"
 	
+	// Coicop-household consumption microdata
+	qui:  include "$pdo\2_Cost_push\21_Create_coicop_data.do"
 	
-exit 
+	// from Coicop to I-O am level 
+	qui: include "$pdo\2_Cost_push\22_coicop2sam.do"
+	
  
-/*===============================================================================================
-					2. Identification assumptions
- ==============================================================================================*/
-	
-		
-	
-	
-	
-	* Push to git_hub folder (results we care about, so git_hub makes automatic back_up: pendent a useful manual back_up, because we do not want to back up everything)
-
-	
 * End log
 display  "End date and time: $S_DATE $S_TIME"
 log close

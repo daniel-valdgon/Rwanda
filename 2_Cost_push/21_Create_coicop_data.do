@@ -5,10 +5,9 @@
 Project:   Subsidies Rwanda
 Author:    EPL (DV & MM) PE (JCP)
 Creation Date:  May 2 2021
-Objective: This dofiles aims to replicate the welfare aggregate based on cons_aggregate.do 
+Objective: cons_hhid_coicop.dta is a household-coicop level dataset that replicates the official welfare aggregate
 	
 ----------------------------------------------------
-Notes: See below code that tries to replicate durables and also code to continue improving over the replication of own food consumption
 	
  ============================================================================================
  ============================================================================================
@@ -24,16 +23,11 @@ clear all
 set mem 900m
 
 *DATA LOCATION
-global data "$pdta/Survey_data"
+global data "$proj/Survey_data"
 
 *RESULTS STORAGE
 cd "$data/results"
 global output "$po"
-
-
-*Log outputs
-cap log close
-log using "$output/log/EICV5.log", replace
 
 
 /*===============================================================================================
@@ -63,6 +57,7 @@ qui {
 	
 	*spending 
 	merge m:1 hhid using "$podta/WB_welfare_comp.dta", keepusing (nfyr_nisr)
+	drop if _merge==2
 	
 	*spending by coicop
 	gen spending=nfyr_nisr*sh_item
@@ -100,6 +95,7 @@ qui {
 	
 	*spending 
 	merge m:1 hhid using "$podta/WB_welfare_comp.dta", keepusing (nfmt_nisr)
+	drop if _merge==2
 	
 	*spending by coicop
 	gen spending=nfmt_nisr*sh_item
@@ -142,6 +138,7 @@ qui {
 	
 	*spending 
 	merge m:1 hhid using "$podta/WB_welfare_comp.dta", keepusing (nfwk_nisr)
+	drop if _merge==2
 	
 	*spending by coicop
 	gen spending=nfwk_nisr*sh_item
@@ -319,6 +316,7 @@ qui {
 	*spending by coicop
 	gen spending=food_nisr*sh_item
 	gen spend_cat="food"
+	drop if sh_item==0 | sh_item==.
 	
 	*database 
 	keep hhid coicop spending spend_cat	
@@ -381,6 +379,7 @@ qui {
 	
 	*spending 
 	merge m:1 hhid using "$podta/WB_welfare_comp.dta", keepusing (auto_f_nisr)
+	drop if _merge==2
 	
 	*spending by coicop
 	gen spending=auto_f_nisr*sh_item
@@ -421,7 +420,7 @@ qui {
 	
 	*spending 
 	merge m:1 hhid using "$podta/WB_welfare_comp.dta", keepusing (educ_nisr)
-	
+	drop if _merge==2
 	*spending by coicop
 	gen spending=educ_nisr*sh_item
 	gen spend_cat="educ"
@@ -475,14 +474,13 @@ qui {
 	use "$data\cs_S8A1_expenditure.dta" , clear
 
 	gen manteinance = s8a1q3 if s8a1q1==29 | s8a1q1==30
-	
+	drop if manteinance==.
 	*coicop
 	decode s8a1q1, gen(coicop)
 	
 	*aggregate
 	collapse (sum) manteinance, by(hhid coicop)
 	ren manteinance spend_item
-	
 	*share
 	bysort hhid: egen  t_spend=total(spend_item)
 	gen sh_item=spend_item/t_spend
@@ -490,6 +488,7 @@ qui {
 	
 	*spending 
 	merge m:1 hhid using "$podta/WB_welfare_comp.dta", keepusing (manteinance_nisr)
+	drop if _merge==2
 	
 	*spending by coicop
 	gen spending=manteinance_nisr*sh_item
@@ -500,14 +499,15 @@ qui {
 	label variable spending "spending by coicop"
 	tempfile manteinance
 	save `manteinance'
-
+	
+	
 }
 
 /*===============================================================================================
 	D. IN KIND TRANSFERS & WAGES 
  ==============================================================================================*/
 
-*qui {
+qui {
 /*---------------------------------
 * DEFINING FOOD & NON-FOOD CONSUMPTION STRUCTURE 
 *---------------------------------*/
@@ -515,8 +515,7 @@ qui {
 use "$podta/WB_welfare_comp.dta"	
 keep hhid 
 tempfile ids
-save `ids' // to create a bundle for all households 
-save "$podta/ids.dta", replace 
+save `ids' // to create a bundle for all households save "$podta/ids.dta", replace 
 
 foreach structure in food and non_food {
 	
@@ -557,8 +556,7 @@ foreach structure in food and non_food {
 		
 		*saving
 		tempfile nat_`structure'
-		save `nat_`structure''
-		save "$podta/nat_`structure'.dta", replace 
+		save `nat_`structure'' //save "$podta/nat_`structure'.dta", replace 
 	restore	
 	
 	*----B. Household spending structure 
@@ -570,8 +568,7 @@ foreach structure in food and non_food {
 		keep hhid sh_item coicop
 		*saving
 		tempfile hh_`structure'
-		save `hh_`structure''
-		save "$podta/hh_`structure'.dta", replace 
+		save `hh_`structure'' //save "$podta/hh_`structure'.dta", replace 
 		
 		
 	*----C. Combining household and national consumption structure
@@ -596,46 +593,22 @@ foreach structure in food and non_food {
 	keep hhid sh_item coicop
 	tempfile `structure'_cons_str
 	save ``structure'_cons_str'
-	save "$podta/`structure'_cons_str.dta", replace 
+	*save "$podta/`structure'_cons_str.dta", replace 
 }
 	
 
-
-
-wsq	
 /*---------------------------------
 * WAGES IN KIND -- NOTE: DATASET AT THE PERSON JOB LEVEL  HHID PID EID
 *---------------------------------*/
 	
-*--------------------
-	*In kind food
+	*-------------------- *In kind food
 	
 	use "$podta/WB_welfare_comp.dta", clear 
 	keep hhid ikfood_nisr
 	ren ikfood_nisr hh_spend
 	
-	merge 1:m hhid using `hh_food'
-	
-	*replace national structure for households withouth infomration about spending on food
-	preserve 
-		keep if _merge==1
-		drop _merge
-		merge 1:m hhid using `nat_food'
-		drop if _merge!=3
-		drop _merge
-		tempfile tmp
-		save `tmp'
-	restore
-	
-	*Delete household with no information on food
-	drop if _merge==1
-	append using `tmp'
-	
-	*spending by coicop
-	bysort hhid: ereplace hh_spend=mean(hh_spend)
-	*local or national spending
+	merge 1:m hhid using `food_cons_str'
 	gen spending=hh_spend*sh_item
-	replace  spending=hh_spend*sh_item_plu if sh_item==. 
 	
 	*saving
 	gen spend_cat="ikfood"
@@ -643,15 +616,7 @@ wsq
 	tempfile ikfood
 	save `ikfood'
 	
-	*---Test ------
-	collapse (sum) spending , by(hhid)
-	merge 1:1 hhid using "$podta/WB_welfare_comp.dta", keepusing (ikfood_nisr)
-	compare spending *nisr
-	*---Test ------
-	
-	
-*--------------------
-	*In kind housing
+	*-------------------- In kind housing
 	use "$podta/WB_welfare_comp.dta" , clear
 	
 	ren ikhous_nisr spending
@@ -667,40 +632,23 @@ wsq
 	tempfile ikhous
 	save `ikhous'
 	
-*-----------------
-	*In kind other (non food weekly and monthly)
+	*-----------------In kind other (non food weekly and monthly)
 	
 	use "$podta/WB_welfare_comp.dta", clear 
 	keep hhid ikothr_nisr
+	ren ikothr_nisr hh_spend
 	
-	merge 1:m hhid using `nf_structure'
-	
-	preserve 
-		keep if _merge==1
-		drop _merge
-		merge 1:m hhid using `plut_nfood_struc'
-		drop if _merge!=3
-		drop _merge
-		tempfile add_hhid_aux
-		save `add_hhid_aux'
-	restore
-	
-	drop if _merge==1
-	append using `add_hhid_aux'
-	
-	bysort hhid: egen tikothr_nisr=mean(ikothr_nisr)
-	
-	*spending by coicop
-	gen spending=tikothr_nisr*sh_item
-	replace  spending=tikothr_nisr*sh_item_plu if sh_item==. 
+	merge 1:m hhid using `non_food_cons_str'
+	gen spending=hh_spend*sh_item
 	
 	*saving
 	gen spend_cat="ikothr"
-	
 	keep hhid coicop spending spend_cat	
 	label variable spending "spending by coicop"
 	tempfile ikothr
 	save `ikothr'
+	
+
 	
 *---------------------------------
 ** IN-KIND TRANFERS (EXP18)
@@ -709,7 +657,7 @@ wsq
 	
 	*------Food component of in-kind  transfers
 	
-	*From ik transfer to ikfood 
+	*From ik transfer to ikfood & ik_non_food
 	use "$data\cs_S9B_transfers_in.dta" , clear
 	
 	replace s9bq10=. if s9bq10>=9999999
@@ -717,183 +665,142 @@ wsq
 	
 	egen trfin = rowtotal(s9bq10 s9bq12), m
 	egen trfin_f = rowtotal(s9bq10), m
-	collapse (sum)  trfin*, by(hhid)
-	
 	collapse (sum) trfin_f trfin, by (hhid)
 	gen sh_food_transf=trfin_f/trfin
+	gen sh_non_food_transf=1-sh_food_transf
 	replace sh_food=0 if trfin_f==. 
 	drop if  sh_food==. | trfin==0
-	
-	keep hhid sh_food_transf
+	keep hhid sh_food_transf sh_non_food_transf
 	tempfile aux_trfin_f
-	*save `aux_trfin_f'
-	save "$podta/aux_trfin_f.dta" , replace 
+	save `aux_trfin_f'
 	
-	*household level dataset 
+	*-----------------------------
+	*Food in kind transfers
+	*-----------------------------
+	
 	use "$podta/WB_welfare_comp.dta", clear 
-	keep hhid trfin
+	keep hhid trfin_nisr
+	ren trfin hh_spend
+	merge 1:1 hhid using `aux_trfin_f', nogen
+	merge 1:m hhid using `food_cons_str'
 	
-	*merge 1:1 hhid using `aux_trfin_f'
-	merge 1:1 hhid using "$podta/aux_trfin_f.dta"
-	drop _merge
-	
-	
-	gen trfin_f_nisr=trfin*sh_food_transf
-	keep hhid trfin_f_nisr sh_food_transf
-	
-	*-----From food to coicop 
-	
-	*merge 1:m hhid using `f_structure'
-	merge 1:m hhid using "$podta/f_structure.dta" 
-	
-	preserve 
-		keep if _merge==1
-		drop _merge
-		*merge 1:m hhid using `plut_food_struc'
-		merge 1:m hhid using "$podta/plut_food_struc.dta" 
-		drop if _merge!=3
-		drop _merge
-		tempfile add_hhid_aux
-		save `add_hhid_aux'
-	restore
-	
-	gen w=1
-	drop if _merge==1
-	append using `add_hhid_aux'
-	
-	bysort hhid: egen ttrfin_f_nisr=mean(trfin_f_nisr)
-	
-	*Spending by coicop
-	gen spending=ttrfin_f_nisr*sh_item
-	replace  spending=ttrfin_f_nisr*sh_item_plu if sh_item==. 
+	gen spending=hh_spend*sh_food_transf*sh_item // 
 	
 	*saving
 	gen spend_cat="trfin_food"
-	keep hhid coicop spending spend_cat	 sh_food_transf w
+	keep hhid coicop spending spend_cat	 
 	label variable spending "spending by coicop"
 	tempfile trfin_food
 	save `trfin_food'
-	
-	*Validation 
-		
-	*---Test ------
-	collapse (sum) spending (mean) sh_food_transf w, by(hhid)
-	merge 1:1 hhid using "$podta/WB_welfare_comp.dta", keepusing (trfin_nisr)
-	gen food_tr=trfin_nisr*sh_food_transf
-	compare spending food_tr if w==1
-	*---Test ------
-	
 	
 	
 	*-----------------------------
 	*Non food in kind transfers
 	*-----------------------------
 	
-	*---> Create food transfers
-	use "$data\cs_S9B_transfers_in.dta" , clear
+	use "$podta/WB_welfare_comp.dta", clear 
+	keep hhid trfin_nisr
+	ren trfin hh_spend
+	merge 1:1 hhid using `aux_trfin_f', nogen
+	merge 1:m hhid using `non_food_cons_str'
 	
-	replace s9bq10=. if s9bq10>=9999999
-	replace s9bq12=. if s9bq12>=9999999
-	
-	*aggregate
-	egen trfin = rowtotal(s9bq10 s9bq12), m
-	egen trfin_nf = rowtotal(s9bq12), m
-	collapse (sum)  trfin*, by(hhid)
-	
-	gen sh_non_food=trfin_nf/trfin
-	drop if  sh_non_food==.
-	
-	*spending 
-	merge m:1 hhid using "$podta/WB_welfare_comp.dta", keepusing (trfin_nisr)
-	drop if _merge==2 // All observations have zero durables spending aas it should be ...
-	
-	*spending by coicop
-	gen spending=trfin_nisr*sh_non_food
-	tempfile aux_trfin_nf
-	save `aux_trfin_nf'
-	
-	*---> Add structure to transfers
-	use `nf_structure', clear 
-	
-	merge m:1 hhid using `aux_trfin_f', keepusing (spending)
-	drop if _merge==2 // all observations have zero durables spending aas it should be
-	
-	*spending by coicop
-	replace spending=spending*sh_item
-	gen spend_cat="trfin_nfood"
+	gen spending=hh_spend*sh_non_food_transf*sh_item // 
 	
 	*saving
-	
-	keep hhid coicop spending spend_cat	
+	gen spend_cat="trfin_non_food"
+	keep hhid coicop spending spend_cat	 
 	label variable spending "spending by coicop"
+	tempfile trfin_non_food
+	save `trfin_non_food'
 	
-	tempfile trfin_nfood
-	save `trfin_nfood'
-	
-	
-	
-	use `trfin_nfood'
-	append using `trfin_nfood'
-	
-	
-	
-	
-	*---Test ------
-	collapse (sum) spending, by(hhid)
-	merge 1:1 hhid using "$podta/WB_welfare_comp.dta", keepusing (trfin_nisr)
-	compare spending *_nisr
-	*---Test ------
-	
-	*educt house manteinance durables ikfood ikhous ikothr
-
 }
 
 	
 /*===============================================================================================
-	B. Building consumption aggregate
+	E. Building consumption aggregate
  ==============================================================================================*/
 	
-	
-	*non-food
-	use `nfyr', clear 
-	
-	append using `nfmt'
-	append using `nfwk'
-	append using `durables'
-	
-	
-	
-	
-	
-	append using `educt'
-	append using `manteinance'
-	append using `house'
-	*food
-	append using `food'
-	append using `auto'
-	
-	*In-kind
-	append using `ikhous'
-	append using `ikfood'
-	append using `ikothr'
-	*Transfers
-	append using `trfin_food'
-	append using `trfin_nfood'
-	
-	*---Test ------
-	collapse (sum) spending, by(hhid)
-	merge 1:1 hhid using "$podta/WB_welfare_comp.dta", keepusing (cons1_nisr)
-	compare spending cons1
-	*---Test ------
-	
-	
-	egen cons1=rowtotal(`spend_cat_list'), m
-	gen cons_ae_wb=cons1/adeqtot
-	gen cons_ae_rp_wb=cons_ae_wb/idx
-	
-	
-	save "$output/dta/WB_welfare.dta" , replace 
+	*Non-food coicop (4)
+/*1*/	use `nfyr', clear 
 
+		dis "----------nfy-----------------"
+		duplicates report hhid coicop 
+		append using `nfmt'
+		dis "----------nfmt-----------------"
+		duplicates report hhid coicop 
+		append using `nfwk'
+		dis "----------nfwk-----------------"
+		duplicates report hhid coicop 
+		append using `durables'
+		dis "----------durables-----------------"
+		duplicates report hhid coicop 
+		
+	*Single coicop spending (3)
+		append using `educt'
+		dis "----------educt-----------------"
+		duplicates report hhid coicop 
+		
+		append using `manteinance'
+		dis "----------manteinance-----------------"
+		duplicates report hhid coicop 
+		
+		append using `house'
+		dis "----------house-----------------"
+		duplicates report hhid coicop 
+		
+	
+	*Food coicop (2)
+		append using `food'
+		dis "----------food-----------------"
+		duplicates report hhid coicop 
+		
+		append using `auto'
+		dis "----------auto-----------------"
+		duplicates report hhid coicop 
+		
+	
+	*In-kind wages (3)
+		append using `ikhous'
+		
+		append using `ikfood'
+		append using `ikothr'
+	
+	*In-kind transfers (2)
+		append using `trfin_food'
+		append using `trfin_non_food'
+	
+	
+	*Creating database at coicop level : we have repeated coicop spending for each household because we impose food and non-food structure
+	collapse (sum) spending (first) spend_cat , by(coicop hhid)
+	
+	/*---Test ------
+	collapse (sum) spending, by(hhid)
+	merge 1:1 hhid using "$podta/WB_welfare_comp.dta", keepusing (cons1_nisr adeqtot idx)
+	compare spending cons1
+	*---Test ------*/
+	
+	merge m:1 hhid using "$podta/WB_welfare_comp.dta", keepusing (cons1_nisr adeqtot idx pline_mod pline_ext  ) nogen
+	
+	ren spending cons
+	gen cons_ae=cons/adeqtot
+	gen cons_ae_rwf14=cons_ae/idx
+	
+	label var cons1_nisr		"Oficial household consumpt"
+	label var spend_cat			"Consumption category"
+	label var cons				"Consumption"
+	label var cons_ae       	"Consumption per ae"
+	label var cons_ae_rwf14  	"Consumption per ae, 2014 Rwf"
+	label var idx  				"Spatial-time deflator"
+	label var adeqtot  			"adult equivalent"
+
+	
+
+	merge m:1 hhid  using "$data/EICV5_Poverty_file.dta", keepusing (province district hhid clust ur region weight pop_wt epov_jan pov_jan quintile decile ) nogen
+	
+	
+	
+	save "$output/dta/cons_hhid_coicop.dta" , replace 
+	
 
 exit 
 
