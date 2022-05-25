@@ -2,16 +2,21 @@ clear all
 
 	if "`c(username)'"=="WB395877" {
 		global proj  "C:\Users\wb395877\OneDrive - WBG\Equity_Policy_Lab\Rwanda\Energy"
-	
-		
 	}
 
 run "${proj}\analysis_subsidies\_programs\libraries\Stata\c\costpush.ado"
 
+
+local i=0
+foreach tax_excise  in 10 20 {
+local ++i
+
 *use "${path}\data\RWA_energy_data_test.dta", clear
 
-global petr_shock = 0.1
-global dies_shock = 0.1
+local t=`tax_excise'/100
+
+global petr_shock = `t'
+global dies_shock = `t'
 
 global comm_share  = 1 // share of pertroleium in petroleum products	
 global sect_share  = 1 // share of pertroleium in chemical sector	
@@ -94,6 +99,33 @@ foreach var in commodity sector {
 	merge 1:1 hhid using `data_`var'', nogen assert(match)
 }
 
-su ${welfare} ${welfare}_dir ${welfare}_ind_*
+
+egen cons_ae_rwf14_total=rowtotal(cons_ae_rwf14_dir cons_ae_rwf14_ind_commodity)
+
+local list_welf "cons_ae_rwf14 cons_ae_rwf14_dir cons_ae_rwf14_ind_commodity cons_ae_rwf14_total"
+keep hhid `list_welf'
+
+*rename for standarization 
+	foreach v in `list_welf' {
+		ren `v' `v'_`tax_excise'
+				
+		label var cons_ae_rwf14_`tax_excise' "benchmark welfare"
+		local text_label=substr("`v'",15,3)
+		label var `v'_`tax_excise' "welfare change, `text_label' effect - tax exc of `tax_excise'"
+	}
+
+	su ${welfare}_`tax_excise' ${welfare}_dir ${welfare}_ind_* ${welfare}_total_*
+	
+	if `i'==1 {
+		tempfile n_tax_sim
+		save `n_tax_sim', replace 
+	}
+	else {
+		merge 1:1 hhid using `n_tax_sim', nogen 
+		save  `n_tax_sim', replace 
+	}
+}
+
+use `n_tax_sim', clear 
 
 save "${proj}\outputs\intermediate\dta\cons_hhid_simulated.dta", replace

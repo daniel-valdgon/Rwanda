@@ -37,7 +37,8 @@ save `has_vehicle', replace
 *---------------------------------*/
 
 * Collapsing houshoeld welfare 
-use "$podta/cons_hhid_sam.dta" , replace  
+use "${proj}\outputs\intermediate\dta\cons_hhid_simulated.dta", replace  
+
 
 *TO be replaced when misha share the dataset and do-files 
 	*Ideally we will merge a price vector with the policy changes produced by the costpush.ado Here I mimick as policy chnage an 10% increase in price of  cheal, cmaiz, cchem
@@ -79,5 +80,7 @@ merge 1:1 hhid using `has_vehicle'
 
 tempfile data_stats
 save `data_stats'
+save "$ppd/dta_for_stats.dta", replace 
+
 
 * Next do-file computes statistics 

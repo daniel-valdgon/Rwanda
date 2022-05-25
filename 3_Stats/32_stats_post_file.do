@@ -12,6 +12,8 @@ Objective: add the I-O sector & commodity to the microdata
  ============================================================================================
  ============================================================================================*/
 
+*Parameters 
+local namexls "welf_measures"
 
 *Tempfiles
 tempfile tf_postfile1 
@@ -19,7 +21,7 @@ tempname tn1
 postfile `tn1' str50(sample type effect ind_l1 ind_l2 value) using `tf_postfile1', replace
 
 
-foreach sample in all urban rural has_vehicle has_not {
+foreach sample in  has_vehicle  all urban rural {
 	
 	if "`sample'"=="all" local cond=""
 	if "`sample'"=="urban" local cond="if ur==1"
@@ -30,16 +32,13 @@ foreach sample in all urban rural has_vehicle has_not {
 	
 	use `data_stats' `cond', clear 
 	
+	
 	/*---------------------------------
 	National characteristics 
 	*---------------------------------*/
 	// Inputs for incidence analysis 
 	quantiles welf_benchmark_t10, gen (q) n(10) // same if you use welfare_benchmark_t20 the index is just to faciliate the loop of calculations 
-}
 
-
-
-dsadada	
 	foreach t in benchmark direct indirect total {
 	
 		foreach effect in t10 t20 {
@@ -67,10 +66,18 @@ dsadada
 	}
 }
 
-
-
 postclose `tn1' 
 use `tf_postfile1', clear 
-*destring year rate obs, replace
+destring *, replace
 
-* Computing differences 
+* Computing changes with respect baseline
+gen bench=value if type=="benchmark"
+bysort sample effect ind_l1 ind_l2: egen b_value=mean(bench)
+// for testing pourpose bysort sample effect ind_l1 ind_l2: egen sd_value=max(bench)
+
+*gen absolute 
+gen abs_value=value-b_value
+gen rel_value=100*(value/b_value -1)
+
+export excel "${ppf}/`namexls'.xlsx", sheetreplace firstrow(variables) sheet("stats_database") 
+
