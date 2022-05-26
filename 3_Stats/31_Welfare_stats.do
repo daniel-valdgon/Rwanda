@@ -65,7 +65,7 @@ foreach t in benchmark dir ind_commodity total {
 			label var lcons_ae_rwf14_`t'_`effect' "level of welfare, `text_label' effect - tax exc of `effect'"
 		}
 		else {
-			gen lcons_ae_rwf14_benchmark_`effect'=cons_ae_rwf14_benchmark_`effect'
+			clonevar lcons_ae_rwf14_benchmark_`effect'=cons_ae_rwf14_benchmark_`effect'
 		}
 		
 		gen pov_`t'_`effect'=lcons_ae_rwf14_`t'_`effect'< pline_mod
@@ -76,9 +76,19 @@ foreach t in benchmark dir ind_commodity total {
 }
 
 
-tempfile data_stats
-save `data_stats'
 save "$ppd/dta_for_stats.dta", replace 
 
 
+
 * Next do-file computes statistics 
+
+* use "$ppd/dta_for_stats.dta", clear 
+
+* quantiles cons_ae_rwf14_benchmark_10 [aw=pop_wt], gen (q) n(10)
+
+ * gen lcons_ae_rwf14_indirect_10=cons_ae_rwf14_benchmark_10-cons_ae_rwf14_ind_commodity_10
+
+ * collapse (mean) cons_ae_rwf14_benchmark_10 lcons_ae_rwf14_indirect_10 [aw=pop_wt], by(q)
+
+
+

@@ -1,21 +1,17 @@
+clear all
 
 	if "`c(username)'"=="WB395877" {
 		global proj  "C:\Users\wb395877\OneDrive - WBG\Equity_Policy_Lab\Rwanda\Energy"
+
+
 	}
 
 run "${proj}\analysis_subsidies\_programs\libraries\Stata\c\costpush.ado"
 
-
-local i=0
-foreach tax_excise  in 10 20 {
-local ++i
-
 *use "${path}\data\RWA_energy_data_test.dta", clear
 
-local t=`tax_excise'/100
-
-global petr_shock = `t'
-global dies_shock = `t'
+global petr_shock = 0.1
+global dies_shock = 0.1
 
 global comm_share  = 1 // share of pertroleium in petroleum products	
 global sect_share  = 1 // share of pertroleium in chemical sector	
@@ -25,11 +21,11 @@ import excel "${proj}\inputs\RWA-IO_input.xlsx", sheet("commodities") firstrow c
 
 gen fixed = 0	
 	replace fixed = 1 if commodity == "cpetr"
-	
+
 
 gen dp = 0
 	replace dp =  (${petr_shock} + ${dies_shock}) / 2 * ${comm_share}  if fixed == 1 
-	
+
 costpush commodity_*, fixed(fixed) price(dp) genptot(total_eff_commodity) genpind(ind_eff_commodity) fix
 tempfile ind_commodity
 save `ind_commodity'
@@ -43,7 +39,7 @@ gen fixed = 0
 
 gen dp = 0
 	replace dp =  (${petr_shock} + ${dies_shock}) / 2 * ${sect_share}  if fixed == 1 
-	
+
 costpush sector_*, fixed(fixed) price(dp) genptot(total_eff_sector) genpind(ind_eff_sector) fix
 tempfile ind_sector
 save `ind_sector'
@@ -72,7 +68,7 @@ merge m:1 coicop using `coicop', nogen assert(match using) keep(match) // we nee
 gen dir_eff = 0
 	replace dir_eff = ${petr_shock} if coicop == "07.2.2.1.01" //petrol
 	replace dir_eff = ${dies_shock} if coicop == "07.2.2.1.02" //diesel
-	
+
 	gen ${welfare}_dir = ${welfare} * dir_eff
 drop dir_eff
 
@@ -98,66 +94,36 @@ foreach var in commodity sector {
 	merge 1:1 hhid using `data_`var'', nogen assert(match)
 }
 
-*creating variable for looping reasons
-egen cons_ae_rwf14_total=rowtotal(cons_ae_rwf14_dir cons_ae_rwf14_ind_commodity)
-
-ren cons_ae_rwf14 cons_ae_rwf14_benchmark
-
-local list_welf "cons_ae_rwf14_benchmark cons_ae_rwf14_dir cons_ae_rwf14_ind_commodity cons_ae_rwf14_total"
-keep hhid `list_welf'
-
-*rename for standarization 
-
-	foreach v in `list_welf' {
-		ren `v' `v'_`tax_excise'
-				
-		label var cons_ae_rwf14_benchmark_`tax_excise' "benchmark level welfare"
-		local text_label=substr("`v'",15,3)
-		label var `v'_`tax_excise' "change in welfare , `text_label' effect - tax exc of `tax_excise'"
-	}
-
-	su ${welfare}_benchmark_* ${welfare}_dir ${welfare}_ind_* ${welfare}_total_*
-	
-	if `i'==1 {
-		tempfile n_tax_sim
-		save `n_tax_sim', replace 
-	}
-	else {
-		merge 1:1 hhid using `n_tax_sim', nogen 
-		save  `n_tax_sim', replace 
-	}
-}
-
-use `n_tax_sim', clear 
+su ${welfare} ${welfare}_dir ${welfare}_ind_*
 
 save "${proj}\outputs\intermediate\dta\cons_hhid_simulated.dta", replace
 
+preserve 
+*Line, weights and uban and rural 
+use "$podta/cons_hhid_sam.dta" , clear 
+
+duplicates drop hhid, force // this is a sam-hhid level dataset so the variable of interest are the same for each household
+
+keep hhid pline* pop_wt ur
+tempfile other_var
+save `other_var', replace 
+restore 
+
+merge 1:1 hhid using `other_var', nogen 
+
+su ${welfare} ${welfare}_dir ${welfare}_ind_*
+su ${welfare} ${welfare}_dir ${welfare}_ind_* [aw=pop_wt]
+
+su ${welfare} 
+su ${welfare} [aw=pop_wt]
 
 
-* use "${proj}\outputs\intermediate\dta\cons_hhid_simulated.dta", replace
+quantiles cons_ae_rwf14 [aw=pop_wt], gen (q) n(10)
+
+gen lcons_ae_rwf14_indirect=cons_ae_rwf14-cons_ae_rwf14_ind_commodity
+
+collapse (mean) cons_ae_rwf14 lcons_ae_rwf14_indirect [aw=pop_wt], by(q)
 
 
-* preserve 
-* *Line, weights and uban and rural 
-* use "$podta/cons_hhid_sam.dta" , clear 
-
-* duplicates drop hhid, force // this is a sam-hhid level dataset so the variable of interest are the same for each household
-
-* keep hhid pline* pop_wt ur
-* tempfile other_var
-* save `other_var', replace 
-* restore 
-
-* merge 1:1 hhid using `other_var', nogen 
-
-
-
-* quantiles cons_ae_rwf14_benchmark_10 [aw=pop_wt], gen (q) n(10)
-
-* gen lcons_ae_rwf14_indirect_10=cons_ae_rwf14_benchmark_10-cons_ae_rwf14_ind_commodity_10
-
-* collapse (mean) cons_ae_rwf14_benchmark_10 lcons_ae_rwf14_indirect_10 [aw=pop_wt], by(q)
-
-* br 
 
 
