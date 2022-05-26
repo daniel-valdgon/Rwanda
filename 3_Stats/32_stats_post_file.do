@@ -37,11 +37,12 @@ foreach sample in  has_vehicle  all urban rural {
 	National characteristics 
 	*---------------------------------*/
 	// Inputs for incidence analysis 
-	quantiles welf_benchmark_t10, gen (q) n(10) // same if you use welfare_benchmark_t20 the index is just to faciliate the loop of calculations 
+	quantiles lcons_ae_rwf14_benchmark_10, gen (q) n(10) // same if you use welfare_benchmark_t20 the index is just to faciliate the loop of calculations 
 
-	foreach t in benchmark direct indirect total {
+
+	foreach t in benchmark dir ind_commodity total {
 	
-		foreach effect in t10 t20 {
+		foreach effect in 10 20 {
 		
 		*Poverty rates 
 		
@@ -50,7 +51,7 @@ foreach sample in  has_vehicle  all urban rural {
 		post `tn1' ("`sample'") ("`t'") ("`effect'") ("Poverty") ("NA") ("`rate'") 
 				
 		*Gini
-		ainequal welf_`t'_`effect'  [w=pop_wt]
+		ainequal lcons_ae_rwf14_`t'_`effect'  [w=pop_wt]
 		local gini=`r(gini_1)'*100
 		post `tn1' ("`sample'") ("`t'") ("`effect'") ("Inequality") ("NA") ("`gini'")  
 		
@@ -58,7 +59,7 @@ foreach sample in  has_vehicle  all urban rural {
 		foreach quantile of numlist 1/10 {
 			
 			* Per-capita income 
-			sum welf_`t'_`effect' [aw=pop_wt] if q==`quantile'
+			sum lcons_ae_rwf14_`t'_`effect' [aw=pop_wt] if q==`quantile'
 			post `tn1' ("`sample'") ("`t'") ("`effect'") ("Mean income by quantile") ("`quantile'") ("`r(mean)'") 
 		}
 		
@@ -78,6 +79,7 @@ bysort sample effect ind_l1 ind_l2: egen b_value=mean(bench)
 *gen absolute 
 gen abs_value=value-b_value
 gen rel_value=100*(value/b_value -1)
+
 
 export excel "${ppf}/`namexls'.xlsx", sheetreplace firstrow(variables) sheet("stats_database") 
 

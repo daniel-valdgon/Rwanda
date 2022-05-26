@@ -1,4 +1,3 @@
-clear all
 
 	if "`c(username)'"=="WB395877" {
 		global proj  "C:\Users\wb395877\OneDrive - WBG\Equity_Policy_Lab\Rwanda\Energy"
@@ -99,22 +98,25 @@ foreach var in commodity sector {
 	merge 1:1 hhid using `data_`var'', nogen assert(match)
 }
 
-
+*creating variable for looping reasons
 egen cons_ae_rwf14_total=rowtotal(cons_ae_rwf14_dir cons_ae_rwf14_ind_commodity)
 
-local list_welf "cons_ae_rwf14 cons_ae_rwf14_dir cons_ae_rwf14_ind_commodity cons_ae_rwf14_total"
+ren cons_ae_rwf14 cons_ae_rwf14_benchmark
+
+local list_welf "cons_ae_rwf14_benchmark cons_ae_rwf14_dir cons_ae_rwf14_ind_commodity cons_ae_rwf14_total"
 keep hhid `list_welf'
 
 *rename for standarization 
+
 	foreach v in `list_welf' {
 		ren `v' `v'_`tax_excise'
 				
-		label var cons_ae_rwf14_`tax_excise' "benchmark welfare"
+		label var cons_ae_rwf14_benchmark_`tax_excise' "benchmark level welfare"
 		local text_label=substr("`v'",15,3)
-		label var `v'_`tax_excise' "welfare change, `text_label' effect - tax exc of `tax_excise'"
+		label var `v'_`tax_excise' "change in welfare , `text_label' effect - tax exc of `tax_excise'"
 	}
 
-	su ${welfare}_`tax_excise' ${welfare}_dir ${welfare}_ind_* ${welfare}_total_*
+	su ${welfare}_benchmark_* ${welfare}_dir ${welfare}_ind_* ${welfare}_total_*
 	
 	if `i'==1 {
 		tempfile n_tax_sim
