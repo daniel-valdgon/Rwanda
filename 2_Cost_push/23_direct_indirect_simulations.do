@@ -34,7 +34,7 @@ costpush commodity_*, fixed(fixed) price(dp) genptot(total_eff_commodity) genpin
 tempfile ind_commodity
 save `ind_commodity'
 
-
+dsadasd
 * calculation the indirect effect using the sector approach
 import excel  "${proj}\inputs\RWA-IO_input.xlsx", sheet("sectors") firstrow clear
 
@@ -132,32 +132,5 @@ use `n_tax_sim', clear
 
 save "${proj}\outputs\intermediate\dta\cons_hhid_simulated.dta", replace
 
-
-
-* use "${proj}\outputs\intermediate\dta\cons_hhid_simulated.dta", replace
-
-
-* preserve 
-* *Line, weights and uban and rural 
-* use "$podta/cons_hhid_sam.dta" , clear 
-
-* duplicates drop hhid, force // this is a sam-hhid level dataset so the variable of interest are the same for each household
-
-* keep hhid pline* pop_wt ur
-* tempfile other_var
-* save `other_var', replace 
-* restore 
-
-* merge 1:1 hhid using `other_var', nogen 
-
-
-
-* quantiles cons_ae_rwf14_benchmark_10 [aw=pop_wt], gen (q) n(10)
-
-* gen lcons_ae_rwf14_indirect_10=cons_ae_rwf14_benchmark_10-cons_ae_rwf14_ind_commodity_10
-
-* collapse (mean) cons_ae_rwf14_benchmark_10 lcons_ae_rwf14_indirect_10 [aw=pop_wt], by(q)
-
-* br 
 
 

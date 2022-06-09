@@ -22,11 +22,13 @@ set more off, perm
 	
 		global proj  "C:/Users/danielsam/Desktop/World Bank/Rwada_Subsidy/r_data/Energy" 
 	}
-	else if {
+	else if "`c(username)'"=="WB395877" {
+		global proj  "C:\Users\wb395877\OneDrive - WBG\Equity_Policy_Lab\Rwanda\Energy"
 	
 		
 	}
-	
+
+
 
 /*===============================================================================================
 	Internal folder structure
@@ -52,8 +54,7 @@ set more off, perm
 	*--> Final outputs 
 	global ppt      "$pp\tables"    // Paper tables
 	global ppf 	  	"$pp\figures"  // Paper figures
-	global pst 	  	"$ps\tables"   // Slides Tables
-	global psf 	  	"$ps\figures"  // Sides Figures
+	global ppd 	  	"$pp\dta"  // Paper figures
 	
 	*--> Create the ouput folder extensions
 	cap mkdir "${pdta}"
@@ -67,8 +68,10 @@ set more off, perm
 	cap mkdir "${pov}"
 	cap mkdir "${pos}"
 	cap mkdir "${podta}" 
+	cap mkdir "${ppt}" 
+	cap mkdir "${ppf}" 
 	
-
+	
 /*===============================================================================================
 	Log and loading programs 
  ==============================================================================================*/
@@ -115,24 +118,44 @@ set more off, perm
 /*===============================================================================================
 	1. Welfare aggregate 
  ==============================================================================================*/
-	
+
+/*	
 	// Replication of official consumption aggregate ...
 	qui: include "$pdo\1_cleaning_cons\11_poverty_numbers.do"
 	
 	//Compare to official welfare aggregate
 	qui: include "$pdo\1_cleaning_cons\12_Replication_welfare_aggregate.do"
 	
-
+*/
 
 /*===============================================================================================
 	2. Tax excise exercise
  ==============================================================================================*/
-	
+/*	
 	// Coicop-household consumption microdata
 	qui:  include "$pdo\2_Cost_push\21_Create_coicop_data.do"
 	
 	// from Coicop to I-O am level 
-	qui: include "$pdo\2_Cost_push\22_coicop2sam.do"
+	qui: include "$pdo\2_Cost_push\22_coicop2sam.do" // this is currently not used
+*/		
+	// from Coicop to I-O am level 
+	 include "$pdo\2_Cost_push\23_direct_indirect_simulations.do"
+	
+
+/*===============================================================================================
+	3. Welfare stats
+ ==============================================================================================*/
+	
+/*
+*/
+
+	// Coicop-household consumption microdata
+	qui:  include "$pdo\3_Stats\31_Welfare_stats.do"
+	
+	// Coicop-household consumption microdata
+	qui: include "$pdo\3_Stats\32_stats_post_file.do"
+	
+
 	
  
 * End log

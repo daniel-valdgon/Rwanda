@@ -10,8 +10,8 @@ run "${proj}\analysis_subsidies\_programs\libraries\Stata\c\costpush.ado"
 
 *use "${path}\data\RWA_energy_data_test.dta", clear
 
-global petr_shock = 0.1
-global dies_shock = 0.1
+global petr_shock = 0.2
+global dies_shock = 0.2
 
 global comm_share  = 1 // share of pertroleium in petroleum products	
 global sect_share  = 1 // share of pertroleium in chemical sector	
@@ -112,7 +112,6 @@ restore
 merge 1:1 hhid using `other_var', nogen 
 
 su ${welfare} ${welfare}_dir ${welfare}_ind_*
-su ${welfare} ${welfare}_dir ${welfare}_ind_* [aw=pop_wt]
 
 su ${welfare} 
 su ${welfare} [aw=pop_wt]
@@ -122,7 +121,10 @@ quantiles cons_ae_rwf14 [aw=pop_wt], gen (q) n(10)
 
 gen lcons_ae_rwf14_indirect=cons_ae_rwf14-cons_ae_rwf14_ind_commodity
 
+
 collapse (mean) cons_ae_rwf14 lcons_ae_rwf14_indirect [aw=pop_wt], by(q)
+
+br
 
 
 
