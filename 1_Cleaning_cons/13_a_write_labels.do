@@ -31,7 +31,7 @@ file write `hdl' _n
 
 forvalues x = 1/`n' {
 	
-	else if "`formulario'"=="7d" {
+	if "`formulario'"=="7d" {
 		
 		file write `hdl' "capture label variable v_sold_7d`=code[`x']' "
 		file write `hdl' `""value sold last 12 mt: `=label[`x']'""' 
@@ -41,7 +41,7 @@ forvalues x = 1/`n' {
 		file write `hdl' `""quant sold last 12 mt: `=label[`x']'""' 
 		file write `hdl' _n
 	}
-	if "`formulario'"=="7e" {
+	else if "`formulario'"=="7e" {
 
 		file write `hdl' "capture label variable v_sold_7e`=code[`x']' "
 		file write `hdl' `""value sold last 12 mt: `=label[`x']'""' 
@@ -58,7 +58,7 @@ forvalues x = 1/`n' {
 	
 	else if "`formulario'"=="7f" {
 		
-		file write `hdl' "capture label variable v_spent_7f`=code[`x']' "
+		file write `hdl' "capture label variable v_sold_7f`=code[`x']' "
 		file write `hdl' `""value sold last 12 mt:  `=label[`x']'""' 
 		file write `hdl' _n
 	
@@ -66,7 +66,7 @@ forvalues x = 1/`n' {
 	else if "`formulario'"=="7g" {
 		
 		file write `hdl' "capture label variable v_spent_7g`=code[`x']' "
-		file write `hdl' `""amount spent in last 12 mt: `=label[`x']'""' 
+		file write `hdl' `""costs in last 12 mt: `=label[`x']'""' 
 		file write `hdl' _n
 	
 	}
