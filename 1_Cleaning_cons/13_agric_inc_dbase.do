@@ -264,12 +264,11 @@ save "$proj/outputs/intermediate/dta/cs_S7F_income_agriculture_wide.dta", replac
 	merge m:1 production_code using `coicop_for_prod' 
 	
 	
-
-		label var quant_sold "quantities sold (kg), last 12 mts (mod 7d,7e & 7f)"
-		label var value_sold "value sold, last 12 mts (mod 7d,7e & 7f)"
-		label var quant_cons "quantities consumed (kg), last 12 mts (mod 7e)"
-		label var code "Production codes"
-		label var label "Production labels"
-		label var module "Questionnarie module"
+	label var quant_sold "quantities sold (kg), last 12 mts (mod 7d,7e & 7f)"
+	label var value_sold "value sold, last 12 mts (mod 7d,7e & 7f)"
+	label var quant_cons "quantities consumed (kg), last 12 mts (mod 7e)"
+	label var code "Production codes"
+	label var label "Production labels"
+	label var module "Questionnarie module"
 
 	
