@@ -283,9 +283,11 @@ Notes: We use the closest replication that we have
 	B. FOOD COICOP LEVEL 
  ==============================================================================================*/
 qui {
+
 /*---------------------------------
   FOOD
 *---------------------------------*/
+
 	use "$data\cs_S8B_expenditure.dta" , clear
 
 	egen spend = rowtotal( s8bq4 - s8bq13), m // from 2nd to last visit (11 visits asking fro consumption of 3 days in Kigaly or 7 visits asking for consumption of 2 days in the rest of provinces 
@@ -295,14 +297,20 @@ qui {
 	replace spend = (365/12) * spend/30 if  province==1 // Kigali City, consumption over 30 days
 	replace spend = (365/12) * spend/14 if  province>1 // All other provinces were interview during 14 days 
 
-	*coicop
-	ren s8bq1 coicop
+	* Create coicop2_ext for future extensions 
+	
+	/*ren s8bq1 coicop
+	decode s8bq0, gen(qq_id_label)
+	tostring s8bq0, gen(coicop_app)
+	
+	egen coicop2=concat(coicop coicop_app), punct("-")
+	ren coicop coicop_ext 
+	*/
 	
 	*-> from monthly to annual 
 	gen food = spend * 12 
 	
-	
-	collapse (sum)  food , by(hhid coicop)
+	collapse (sum)  food , by(hhid coicop ) // coicop_ext could be added later to exploit all the granularity of the HH survey, we decide to do that only if necessary and after talking  with NSO about why different products have same coicop code
 	ren food spend_item
 	
 	*share
@@ -319,7 +327,7 @@ qui {
 	drop if sh_item==0 | sh_item==.
 	
 	*database 
-	keep hhid coicop spending spend_cat	
+	keep hhid coicop spending spend_cat	qq_id_label
 	label variable spending "spending by coicop"
 	
 	*saving
@@ -367,9 +375,14 @@ qui {
 	
 	*coicop
 	ren s8cq1 coicop 
+	decode s8cq0, gen(qq_id_label)
+	tostring s8cq0, gen(coicop_app)
 	
+	*list of coicop that have more than one name 
+	egen coicop2=concat(coicop coicop_app), punct("-")
+	ren coicop2 coicop_ext 
 	
-	collapse (sum)  auto_f, by(hhid coicop)
+	collapse (sum)  auto_f  (first) qq_id_label, by(hhid coicop )
 	ren auto_f spend_item
 	
 	*share
@@ -387,7 +400,7 @@ qui {
 	
 	
 	*database 
-	keep hhid coicop spending spend_cat
+	keep hhid coicop spending spend_cat qq_id_label
 		
 	label variable spending "spending by coicop"
 	
@@ -507,24 +520,25 @@ qui {
 	D. IN KIND TRANSFERS & WAGES 
  ==============================================================================================*/
 
-qui {
 /*---------------------------------
 * DEFINING FOOD & NON-FOOD CONSUMPTION STRUCTURE 
 *---------------------------------*/
+
+*qui {
 	
-use "$podta/WB_welfare_comp.dta"	
+use "$podta/WB_welfare_comp.dta", clear 	
 keep hhid 
 tempfile ids
 save `ids' // to create a bundle for all households save "$podta/ids.dta", replace 
 
-foreach structure in food and non_food {
+foreach structure in food non_food {
 	
 	if "`structure'"=="food" {
 		use `food', clear 
 		append using `auto'
 		
 	}
-	else {
+	else if "`structure'"=="non_food" {
 		use `nfyr', clear 
 		append using `nfmt'
 		append using `nfwk'
@@ -533,39 +547,64 @@ foreach structure in food and non_food {
 		append using `manteinance'
 		append using `house'
 	}
+
+	cap gen qq_id_label=""
 	
-	*----A. National spending structure
+	
+	*----A. National spending structure by food and non food 
 	preserve
 		
 		*Consumption shares
-		collapse (sum) spend_item=spending, by(coicop)
+		collapse (sum) spend_item=spending (first) qq_id_label, by(coicop)
 		
 		egen  t_spend=total(spend_item)
 		gen sh_item=spend_item/t_spend //share of spending by coicop 
 		drop if sh_item==0 | sh_item==.
 		
-		gen hhid=200001 // we make this a one household dataset to replicate national structure for all households below with the command fillin 
+		gen hhid=200001 // we make up this household id to merge the national consumption structure to all household interviewed (see command filling below)
 		
-		keep sh_item coicop hhid
+		keep sh_item coicop hhid qq_id_label spend_item t_spend
+		
 		
 		merge m:1 hhid using `ids'
 		drop _merge
+		
+		*Expanding datasest at hhid
 		fillin hhid coicop
 		bysort coicop: ereplace sh_item=mean(sh_item)
+		
+		gsort coicop -qq_id_label
+		gen sort_id=_n
+		bysort coicop (sort_id): replace qq_id_label=qq_id_label[_n-1] if qq_id_label=="" & qq_id_label[_n-1]!=""
 		drop if coicop==""
 		
-		*saving
+		*Saving hhid national structure as tempfile to use below
 		tempfile nat_`structure'
 		save `nat_`structure'' //save "$podta/nat_`structure'.dta", replace 
+		
+		
+		*Saving hhid national structure as dta file for future computations
+		duplicates drop coicop qq_id_label, force 
+		drop hhid sort_id _fillin 
+		
+		
+		if "`structure'"=="food" {
+			save "$output/dta/nat_cons_coicop_lblid.dta" , replace
+		}
+		else if "`structure'"=="non_food" {
+			append using "$output/dta/nat_cons_coicop_lblid.dta"
+			save "$output/dta/nat_cons_coicop_lblid.dta" , replace
+		}
+		
 	restore	
 	
 	*----B. Household spending structure 
 		
-		collapse (sum) spend_item=spending, by(hhid coicop)
+		collapse (sum) spend_item=spending (first) qq_id_label, by(hhid coicop)
 		bysort hhid: egen t_spend=total(spend_item)
 		gen sh_item=spend_item/t_spend
 		drop if sh_item==0 | sh_item==.
-		keep hhid sh_item coicop
+		keep hhid sh_item coicop qq_id_label
 		*saving
 		tempfile hh_`structure'
 		save `hh_`structure'' //save "$podta/hh_`structure'.dta", replace 
@@ -590,7 +629,7 @@ foreach structure in food and non_food {
 	append using `hh_tmp'
 
 	*----D. Saving
-	keep hhid sh_item coicop
+	keep hhid sh_item coicop qq_id_label
 	tempfile `structure'_cons_str
 	save ``structure'_cons_str'
 	*save "$podta/`structure'_cons_str.dta", replace 
@@ -598,9 +637,14 @@ foreach structure in food and non_food {
 	
 
 /*---------------------------------
-* WAGES IN KIND -- NOTE: DATASET AT THE PERSON JOB LEVEL  HHID PID EID
+* SPLIT IN-KIND WAGES and TRANSFERS AT COICOP LEVEL 
 *---------------------------------*/
-	
+
+
+/*---------------------------------
+* WAGES Note: dataset at the person job level  hhid pid eid
+*---------------------------------*/
+
 	*-------------------- *In kind food
 	
 	use "$podta/WB_welfare_comp.dta", clear 
@@ -651,13 +695,10 @@ foreach structure in food and non_food {
 
 	
 *---------------------------------
-** IN-KIND TRANFERS (EXP18)
-* Food + own / Non-food consumption 
+** IN-KIND TRANSFERS (EXP18)
 *---------------------------------
 	
-	*------Food component of in-kind  transfers
-	
-	*From ik transfer to ikfood & ik_non_food
+	*------ From ik transfer to ikfood & ik_non_food
 	use "$data\cs_S9B_transfers_in.dta" , clear
 	
 	replace s9bq10=. if s9bq10>=9999999
@@ -675,7 +716,7 @@ foreach structure in food and non_food {
 	save `aux_trfin_f'
 	
 	*-----------------------------
-	*Food in kind transfers
+	*From Food in-kind transfers to COICOP
 	*-----------------------------
 	
 	use "$podta/WB_welfare_comp.dta", clear 
@@ -695,7 +736,7 @@ foreach structure in food and non_food {
 	
 	
 	*-----------------------------
-	*Non food in kind transfers
+	*From Non food in-kind transfers to COICOP
 	*-----------------------------
 	
 	use "$podta/WB_welfare_comp.dta", clear 
@@ -713,16 +754,18 @@ foreach structure in food and non_food {
 	tempfile trfin_non_food
 	save `trfin_non_food'
 	
-}
+*}
 
 	
 /*===============================================================================================
 	E. Building consumption aggregate
  ==============================================================================================*/
 	
+	dis "----------appending cons agg-----------------"
+		
 	*Non-food coicop (4)
-/*1*/	use `nfyr', clear 
-
+		dis "----------nfyr-----------------"
+		use `nfyr', clear 
 		dis "----------nfy-----------------"
 		duplicates report hhid coicop 
 		append using `nfmt'
@@ -747,8 +790,6 @@ foreach structure in food and non_food {
 		append using `house'
 		dis "----------house-----------------"
 		duplicates report hhid coicop 
-		
-	
 	*Food coicop (2)
 		append using `food'
 		dis "----------food-----------------"
@@ -757,11 +798,11 @@ foreach structure in food and non_food {
 		append using `auto'
 		dis "----------auto-----------------"
 		duplicates report hhid coicop 
-		
+	
+	
 	
 	*In-kind wages (3)
 		append using `ikhous'
-		
 		append using `ikfood'
 		append using `ikothr'
 	

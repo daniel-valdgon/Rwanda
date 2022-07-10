@@ -125,30 +125,25 @@ set more off, perm
 	
 	//Compare to official welfare aggregate
 	qui: include "$pdo\1_cleaning_cons\12_Replication_welfare_aggregate.do"
-	
 */
 
 /*===============================================================================================
 	2. Tax excise exercise
  ==============================================================================================*/
-/*	
+
 	// Coicop-household consumption microdata
 	qui:  include "$pdo\2_Cost_push\21_Create_coicop_data.do"
 	
 	// from Coicop to I-O am level 
 	qui: include "$pdo\2_Cost_push\22_coicop2sam.do" // this is currently not used
-*/		
+		
 	// from Coicop to I-O am level 
 	 include "$pdo\2_Cost_push\23_direct_indirect_simulations.do"
-	
 
 /*===============================================================================================
 	3. Welfare stats
  ==============================================================================================*/
 	
-/*
-*/
-
 	// Coicop-household consumption microdata
 	qui:  include "$pdo\3_Stats\31_Welfare_stats.do"
 	

@@ -4,26 +4,24 @@
 
 Project:   Subsidies Rwanda
 Author:    EPL (DV & MM) PE (JCP)
-Creation Date:  June 8 2022
-Objective: Clean and merge all datasets 
+Creation Date:  July 5th 2022
+Objective: Produce stats from HH survey that are parameters required for simulations 
 	
 
 ----------------------------------------------------
-Notes: Depending on the module the prduction code means something different, we change the production code to avoid that. You will find duplicates of ccode and module that need to be checked at the end of the dofile:  duplicates drop code module, force  duplicates report code  duplicates tag code, gen(e) br if e!=0
+Notes: 
 
  ============================================================================================
  ============================================================================================*/
 
 /*=====================================================================================
-	A. Small crops 
+	A. Household consumption by Coicop
 =======================================================================================*/
 
-use "$proj/Survey_data/cs_S7E_small_crop.dta", clear
+use "$output/dta/cons_hhid_coicop.dta" , replace 
 
-/*
-// Note: there are duplicates
-duplicates tag hhid  s7eq2, gen (d) , this should not happen 
-*/
+use "$output/dta/WB_welfare.dta" , replace 
+
 
 *Annualized quantity consume last 7 days
 gen q_cons_7e=s7eq10a*365 if s7eq10b==1
@@ -286,3 +284,8 @@ save "$proj/outputs/intermediate/dta/cs_S7F_income_agriculture_wide.dta", replac
 	
 	drop if coicop==""
 	save "$output/dta/prod_hhid_coicop.dta" , replace 
+	
+	
+	
+	
+	

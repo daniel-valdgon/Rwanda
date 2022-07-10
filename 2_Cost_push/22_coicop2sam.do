@@ -1,7 +1,6 @@
 /*============================================================================================
  ======================================================================================
- ======================================================================================
-
+ 
 Project:   Subsidies Rwanda
 Author:    EPL (DV & MM) PE (JCP)
 Creation Date:  May 2 2021
@@ -9,9 +8,9 @@ Objective: add the I-O sector & commodity to the microdata
 	
 ----------------------------------------------------
 	
- ============================================================================================
- ============================================================================================
- ============================================================================================*/
+ 
+============================================================================================
+============================================================================================*/
 
 
 /*===============================================================================================
@@ -116,7 +115,7 @@ collapse (sum) cons cons_ae cons_ae_rwf14  (first) pline_mod pline_ext cons1_nis
 	label var cons_ae       	"Consumption per ae"
 	label var cons_ae_rwf14  	"Consumption per ae, 2014 Rwf"
 	label var idx  				"Spatial-time deflator"
-	label var adeqtot  			"adult equivalent"
+	label var adeqtot  			"Adult equivalent"
 
 merge m:1 hhid using "$data/EICV5_Poverty_file.dta", keepusing (province district hhid clust ur region weight pop_wt epov_jan pov_jan quintile decile) nogen
 	
