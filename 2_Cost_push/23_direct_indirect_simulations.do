@@ -1,10 +1,15 @@
-
-	if "`c(username)'"=="WB395877" {
-		global proj  "C:\Users\wb395877\OneDrive - WBG\Equity_Policy_Lab\Rwanda\Energy"
-	}
-
-run "${proj}\analysis_subsidies\_programs\libraries\Stata\c\costpush.ado"
-
+/*============================================================================================
+ ======================================================================================
+ 
+Project:   Subsidies Rwanda
+Author:    EPL (DV & MM) PE (JCP)
+Creation Date:  May 2 2021
+Objective: Compute cost push for petroleoum reform and equivalent variation dataset 
+----------------------------------------------------
+	
+ 
+============================================================================================
+============================================================================================*/
 
 local i=0
 foreach tax_excise  in 10 20 {
@@ -34,7 +39,7 @@ costpush commodity_*, fixed(fixed) price(dp) genptot(total_eff_commodity) genpin
 tempfile ind_commodity
 save `ind_commodity'
 
-dsadasd
+
 * calculation the indirect effect using the sector approach
 import excel  "${proj}\inputs\RWA-IO_input.xlsx", sheet("sectors") firstrow clear
 

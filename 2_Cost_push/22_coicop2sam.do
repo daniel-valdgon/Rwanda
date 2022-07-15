@@ -5,7 +5,6 @@ Project:   Subsidies Rwanda
 Author:    EPL (DV & MM) PE (JCP)
 Creation Date:  May 2 2021
 Objective: add the I-O sector & commodity to the microdata
-	
 ----------------------------------------------------
 	
  
@@ -21,24 +20,24 @@ set more off
 clear all
 set mem 900m
 
-local io "commodity" // select "sector" or "commodity"
+*local io "commodity" // select "sector" or "commodity"
 
 /*===============================================================================================
 					Paramteter setting 
  ==============================================================================================*/
 
-if "`io'"=="sector" {
+if "${io}"=="sector" {
 
 	*Cleaning coicop-sector correspondence
 	
 	//correspondence 
-	import excel using "$proj/inputs/Matching COICOP-SAM_May23.xlsx", clear sheet("sector_list") firstrow
+	import excel using "$proj/inputs/${xls_nm_pmts}.xlsx", clear sheet("sector_list") firstrow
 	ren description sam_description
 	tempfile prev_tmp
 	save `prev_tmp'
 	
 	//description
-	import excel using "$proj/inputs/Matching COICOP-SAM_May23.xlsx", clear sheet("coicop_sector")  firstrow
+	import excel using "$proj/inputs/${xls_nm_pmts}.xlsx", clear sheet("coicop_sector")  firstrow
 	ren _all , lower 
 	keep item coicop sam_sector
  
@@ -51,15 +50,15 @@ if "`io'"=="sector" {
 	drop if _merge==2
 	drop _merge
 	
-	// A coicop can be mapped to more than one I-O sector. In that case we need to add another digit to the coicop and redistribute spending in the proportion of total output. We will do that later given the time constraints. In the meantime we eliminate duplicates. See the list of the sectors for which we ignore this problem at the bottom of the do-file 
+	// A coicop can be mapped to more than one I-O sector. In that case we need to add another digit to the coicop classification and redistribute hh spending following some rule (e.g proportion of total output). In the meantime we just keep one single coicop-sam mapping. The original coicop list isn on a hidden sheet name "original.."
 	/* duplicates tag coicop, gen (t) br if t!=0  */
 	
 	duplicates drop coicop, force 
-	
 	tempfile coicop_sam
-	save `coicop_sam', replace 
+	save `coicop_sam' 
+
 }
-else if "`io'"=="commodity"  {
+else if "${io}"=="commodity"  {
 
 
 	*Cleaning coicop-sector correspondence
@@ -98,17 +97,16 @@ else if "`io'"=="commodity"  {
 }
 
 
-dis "creating a hhid `io' level dataset "
+dis "creating a hhid ${io} level dataset "
 
 use "$output/dta/cons_hhid_coicop.dta" , clear 
 merge m:1 coicop using `coicop_sam'
 drop if _merge==2
 drop _merge
 
-collapse (sum) cons cons_ae cons_ae_rwf14  (first) pline_mod pline_ext cons1_nisr idx adeqtot spend_cat  , by(hhid sam_`io')
+collapse (sum) cons cons_ae cons_ae_rwf14  (first) pline_mod pline_ext cons1_nisr idx adeqtot spend_cat  , by(hhid sam_${io})
 
 
-	
 	label var cons1_nisr		"Oficial household consumpt"
 	label var spend_cat			"Consumption category"
 	label var cons				"Consumption"
@@ -124,7 +122,7 @@ save "$podta/cons_hhid_sam.dta" , replace
 
 exit 
 
-/*Note : Below coicops with more than one sector. Some of them already fixed
+/*Note : Below coicops with more than one sector. This problem was solved by keeping one single sector. The first one
 coicop	sam
 01.1.1.6.07	ammll
 01.1.1.6.07	asmll

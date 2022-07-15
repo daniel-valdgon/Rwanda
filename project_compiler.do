@@ -29,13 +29,12 @@ set more off, perm
 	}
 
 
-
 /*===============================================================================================
 	Internal folder structure
 	Note: Do not change paths here unless you want to change the structure of the project. Changes to this section may affect other users.						
  ==============================================================================================*/
 	
-	
+	*--> Basic output and input paths 
 	global pdo   		"$proj/analysis_subsidies" 	 // path do-files
 	global pdta			"$proj/inputs"
 	global pp 	  		"$proj/outputs/final" 		 // path paper output
@@ -71,6 +70,9 @@ set more off, perm
 	cap mkdir "${ppt}" 
 	cap mkdir "${ppf}" 
 	
+	*--> Excel files with parameters 
+	
+	global xls_nm_pmts "parameters"
 	
 /*===============================================================================================
 	Log and loading programs 
@@ -89,68 +91,81 @@ set more off, perm
 
 
 	* Stata programs and R scripts that are cross sectional and reused for several do-files in the paper
-	adopath ++ "$pdo/_programs"
-	
-	*download new packages either from github or from repec. We turn off this line, in principle could be dangerous to have always the lastest packages.
-	
-		*include "$proj/scripts/_programs/_install_stata_packages.do"
-		
-		* if "$DisableR"!="1" rscript using "$proj/scripts/_programs/_install_R_packages.R" //  R packages can be installed manually (see README) or installed automatically by uncommenting the following line
 	
 	*Required packages 	written by others 
-	sysdir set PERSONAL "$pdo/_programs/libraries/Stata"  // This is not right, PELAOOOOO
-	mata: mata mlib index
+	sysdir set PERSONAL "$pdo/_programs/libraries/Stata"  
 	
-	* Stata and R version control
-	version 16.1
-	*if "$DisableR"!="1" rscript using "$MyProject/scripts/programs/_rversion.R", args(3.6 4.0.1 1 0)
+		*-->Cost push program 
+		run "${proj}\analysis_subsidies\_programs\libraries\Stata\c\costpush.ado"
 
+		
 
 /*===============================================================================================
 	0. Setting up parameters
  ==============================================================================================*/
 	
-	*dis "Loading settings:"
-	*include "$pdo\settings.do"
-	*Note: Define $folder for each step. This makes that each table, figure, ster file is saved in a independent folder.  For eaxample :  "$pot/31_an" saves tables for analysis 31_an
+	dis "Loading paramters"
+	include "$pdo\pull_pmts.do"
 	
+
 	
 /*===============================================================================================
 	1. Welfare aggregate 
  ==============================================================================================*/
 
-/*	
-	// Replication of official consumption aggregate ...
-	qui: include "$pdo\1_cleaning_cons\11_poverty_numbers.do"
+/*
+	*Welfare replication
+	// Effort to replicate the welfare aggregate
+	qui: include "$pdo\1_cleaning_cons\11_welfare_aggregate.do"
 	
-	//Compare to official welfare aggregate
-	qui: include "$pdo\1_cleaning_cons\12_Replication_welfare_aggregate.do"
-*/
-
-/*===============================================================================================
-	2. Tax excise exercise
- ==============================================================================================*/
-
-	// Coicop-household consumption microdata
-	qui:  include "$pdo\2_Cost_push\21_Create_coicop_data.do"
+			// Compare our replication with official statistics 
+			qui: include "$pdo\1_cleaning_cons\11a_comp_welfare_agregate.do"
 	
-	// from Coicop to I-O am level 
-	qui: include "$pdo\2_Cost_push\22_coicop2sam.do" // this is currently not used
+	*Consumption data
+	// Creates a long format dataset at the household coicop level that replicates (by construction) the official statistics 
+	qui:  include "$pdo\1_cleaning_cons\12_coicop_hh_data.do"
+
+*/	
+	*Sales data
+	// Creates a long format dataset at the household coicop level that capture gross income for agricultural producers  small and large producers 
+	  include "$pdo\1_cleaning_cons\13_agric_inc_dbase.do"
+	
+	  include "$pdo\1_cleaning_cons\14_small_produc.do"
 		
-	// from Coicop to I-O am level 
-	 include "$pdo\2_Cost_push\23_direct_indirect_simulations.do"
-
 /*===============================================================================================
-	3. Welfare stats
+	2. Cost push 
+ ==============================================================================================*/
+
+	*Sam to COICOP 
+	// from Coicop to I-O in order to apply cost push model 
+	*qui: include "$pdo\2_Cost_push\22_coicop2sam.do" // this is currently not used
+	
+	*Tax excise 
+	// from Coicop to I-O am level 
+	* include "$pdo\2_Cost_push\23_direct_indirect_simulations.do"
+	
+	*Cost push on inflation 
+	 include "$pdo\2_Cost_push\24_food_inflation.do"
+	
+	
+/*===============================================================================================
+	3. Welfare stats Tax ex
  ==============================================================================================*/
 	
 	// Coicop-household consumption microdata
-	qui:  include "$pdo\3_Stats\31_Welfare_stats.do"
+	*qui:  include "$pdo\3_Stats\31_Welfare_stats.do"
 	
 	// Coicop-household consumption microdata
-	qui: include "$pdo\3_Stats\32_stats_post_file.do"
+	*qui: include "$pdo\3_Stats\32_stats_post_file.do"
 	
 
+/*===============================================================================================
+	4. Deaton Stats 
+ ==============================================================================================*/
+
+	include "$pdo/4_Inflation/4_1_Net_gains_inflation.do"
+	
+	include "$pdo/4_Inflation/42_Outputs.do"
 	
  
 * End log

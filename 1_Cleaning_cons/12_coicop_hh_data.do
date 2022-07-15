@@ -289,7 +289,9 @@ qui {
 *---------------------------------*/
 
 	use "$data\cs_S8B_expenditure.dta" , clear
-
+	
+	ren s8bq1 coicop 
+	
 	egen spend = rowtotal( s8bq4 - s8bq13), m // from 2nd to last visit (11 visits asking fro consumption of 3 days in Kigaly or 7 visits asking for consumption of 2 days in the rest of provinces 
 	
 	*aggregate 
@@ -297,20 +299,12 @@ qui {
 	replace spend = (365/12) * spend/30 if  province==1 // Kigali City, consumption over 30 days
 	replace spend = (365/12) * spend/14 if  province>1 // All other provinces were interview during 14 days 
 
-	* Create coicop2_ext for future extensions 
-	
-	/*ren s8bq1 coicop
-	decode s8bq0, gen(qq_id_label)
-	tostring s8bq0, gen(coicop_app)
-	
-	egen coicop2=concat(coicop coicop_app), punct("-")
-	ren coicop coicop_ext 
-	*/
 	
 	*-> from monthly to annual 
 	gen food = spend * 12 
 	
-	collapse (sum)  food , by(hhid coicop ) // coicop_ext could be added later to exploit all the granularity of the HH survey, we decide to do that only if necessary and after talking  with NSO about why different products have same coicop code
+	collapse (sum)  food  , by(hhid coicop )
+	
 	ren food spend_item
 	
 	*share
@@ -327,7 +321,7 @@ qui {
 	drop if sh_item==0 | sh_item==.
 	
 	*database 
-	keep hhid coicop spending spend_cat	qq_id_label
+	keep hhid coicop spending spend_cat	
 	label variable spending "spending by coicop"
 	
 	*saving
@@ -340,6 +334,8 @@ qui {
 *---------------------------------*/
 	use "$data\cs_S8C_farming.dta" , clear
 	
+	ren s8cq1 coicop 
+
 	*Quantities from 2nd to last interview 
 		egen spend_q = rowtotal(s8cq4 - s8cq13), m 
 	
@@ -373,16 +369,8 @@ qui {
 	replace `v' = `v' * 12 //by multiplying by 12 (instead of self-reported number of months consumed)
 	}	
 	
-	*coicop
-	ren s8cq1 coicop 
-	decode s8cq0, gen(qq_id_label)
-	tostring s8cq0, gen(coicop_app)
 	
-	*list of coicop that have more than one name 
-	egen coicop2=concat(coicop coicop_app), punct("-")
-	ren coicop2 coicop_ext 
-	
-	collapse (sum)  auto_f  (first) qq_id_label, by(hhid coicop )
+	collapse (sum)  auto_f , by(hhid coicop )
 	ren auto_f spend_item
 	
 	*share
@@ -398,9 +386,8 @@ qui {
 	gen spending=auto_f_nisr*sh_item
 	gen spend_cat="auto"
 	
-	
 	*database 
-	keep hhid coicop spending spend_cat qq_id_label
+	keep hhid coicop spending spend_cat 
 		
 	label variable spending "spending by coicop"
 	
@@ -548,14 +535,13 @@ foreach structure in food non_food {
 		append using `house'
 	}
 
-	cap gen qq_id_label=""
 	
 	
-	*----A. National spending structure by food and non food 
+	*----A. National spending structure by food and non food separately
 	preserve
 		
 		*Consumption shares
-		collapse (sum) spend_item=spending (first) qq_id_label, by(coicop)
+		collapse (sum) spend_item=spending , by(coicop)
 		
 		egen  t_spend=total(spend_item)
 		gen sh_item=spend_item/t_spend //share of spending by coicop 
@@ -563,7 +549,7 @@ foreach structure in food non_food {
 		
 		gen hhid=200001 // we make up this household id to merge the national consumption structure to all household interviewed (see command filling below)
 		
-		keep sh_item coicop hhid qq_id_label spend_item t_spend
+		keep sh_item coicop hhid  spend_item t_spend
 		
 		
 		merge m:1 hhid using `ids'
@@ -572,10 +558,6 @@ foreach structure in food non_food {
 		*Expanding datasest at hhid
 		fillin hhid coicop
 		bysort coicop: ereplace sh_item=mean(sh_item)
-		
-		gsort coicop -qq_id_label
-		gen sort_id=_n
-		bysort coicop (sort_id): replace qq_id_label=qq_id_label[_n-1] if qq_id_label=="" & qq_id_label[_n-1]!=""
 		drop if coicop==""
 		
 		*Saving hhid national structure as tempfile to use below
@@ -584,33 +566,32 @@ foreach structure in food non_food {
 		
 		
 		*Saving hhid national structure as dta file for future computations
-		duplicates drop coicop qq_id_label, force 
-		drop hhid sort_id _fillin 
-		
+		duplicates drop coicop , force 
+		gen structure="`structure'"
 		
 		if "`structure'"=="food" {
-			save "$output/dta/nat_cons_coicop_lblid.dta" , replace
+			save "$output/dta/nat_cons_coicop_str_food_non_food_separately.dta" , replace
 		}
 		else if "`structure'"=="non_food" {
-			append using "$output/dta/nat_cons_coicop_lblid.dta"
-			save "$output/dta/nat_cons_coicop_lblid.dta" , replace
+			append using "$output/dta/nat_cons_coicop_str_food_non_food_separately.dta"
+			save "$output/dta/nat_cons_coicop_str_food_non_food_separately.dta" , replace
 		}
 		
 	restore	
 	
 	*----B. Household spending structure 
 		
-		collapse (sum) spend_item=spending (first) qq_id_label, by(hhid coicop)
+		collapse (sum) spend_item=spending , by(hhid coicop)
 		bysort hhid: egen t_spend=total(spend_item)
 		gen sh_item=spend_item/t_spend
 		drop if sh_item==0 | sh_item==.
-		keep hhid sh_item coicop qq_id_label
+		keep hhid sh_item coicop 
 		*saving
 		tempfile hh_`structure'
 		save `hh_`structure'' //save "$podta/hh_`structure'.dta", replace 
 		
 		
-	*----C. Combining household and national consumption structure
+	*----C. Combining household and national consumption structure for households withouth any structure
 	
 	merge m:1 hhid using `ids', 
 	preserve 
@@ -628,8 +609,8 @@ foreach structure in food non_food {
 	drop if _merge==2
 	append using `hh_tmp'
 
-	*----D. Saving
-	keep hhid sh_item coicop qq_id_label
+	*----D. Saving databases
+	keep hhid sh_item coicop 
 	tempfile `structure'_cons_str
 	save ``structure'_cons_str'
 	*save "$podta/`structure'_cons_str.dta", replace 
